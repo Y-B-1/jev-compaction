@@ -37,8 +37,11 @@ export function recordMidTurn(pending: MidTurn[], text: string, tail: readonly R
   if (pending.length > MAX_PENDING) pending.splice(0, pending.length - MAX_PENDING);
 }
 
+/** Whether a user row already holds this message as delivered (its lead and words, not merely the words). */
+const holds = (messages: readonly Row[], p: MidTurn) => messages.some((m) => m.role === 'user' && m.text.includes(p.text));
+
 /**
- * `messages` with each pending message that none of them holds put back as text on the
+ * `messages` with each pending message that no user row holds put back as text on the
  * last result row of the group it arrived after, or on the newest result row when that
  * group is gone; never on a prompt the user typed. The changed row goes back without its
  * handle, so the engine saves it from its text and tool blocks.
@@ -47,8 +50,7 @@ export function restoreMidTurn<M extends Row>(messages: readonly M[], pending: r
   const out = [...messages];
   let restored = 0;
   for (const p of pending) {
-    const body = midTurnBody(p.text);
-    if (!body || out.some((m) => m.text.includes(body))) continue;
+    if (!midTurnBody(p.text) || holds(out, p)) continue;
     let at = out.findIndex((m) => isResultRow(m) && (m.toolResults ?? []).some((r) => p.after.includes(r.tool_use_id)));
     if (at !== -1) while (at + 1 < out.length && isResultRow(out[at + 1] as M)) at += 1;
     else for (let i = out.length - 1; i >= 0 && at === -1; i--) if (isResultRow(out[i] as M)) at = i;
@@ -58,12 +60,4 @@ export function restoreMidTurn<M extends Row>(messages: readonly M[], pending: r
     restored += 1;
   }
   return { messages: out, restored };
-}
-
-/** Drops from `pending` each message `messages` already holds. */
-export function prunePresent(pending: MidTurn[], messages: readonly Row[]): void {
-  for (let i = pending.length - 1; i >= 0; i--) {
-    const body = midTurnBody((pending[i] as MidTurn).text);
-    if (!body || messages.some((m) => m.text.includes(body))) pending.splice(i, 1);
-  }
 }

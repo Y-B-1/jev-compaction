@@ -55,6 +55,13 @@ describe('restoreMidTurn', () => {
     expect(out).toEqual(messages);
   });
 
+  it('restores a short message even when a reply contains the same word', () => {
+    const messages = [prompt('go'), { role: 'assistant', text: 'ok, looking', toolUses: [], handle: 'a-x' } as SessionMessage, call('t1'), result('t1')];
+    const { messages: out, restored } = restoreMidTurn(messages, [{ text: attachment('ok'), after: ['t1'] }]);
+    expect(restored).toBe(1);
+    expect(out[3]!.text).toBe(attachment('ok'));
+  });
+
   it('uses the last result row of a parallel group', () => {
     const messages = [prompt('go'), call('p1'), call('p2'), result('p1'), result('p2')];
     const { messages: out } = restoreMidTurn(messages, [{ text: attachment('stop after this'), after: ['p1'] }]);
@@ -121,5 +128,8 @@ describe('the hook keeps a mid-turn message through a Jev compaction', () => {
     const holder = (out.messages as SessionMessage[]).find((m) => m.text.includes('HERON-7342'));
     expect(holder?.toolResults?.[0]?.tool_use_id).toBe('t3');
     expect(holder?.handle).toBeUndefined();
+    // The record serves one compaction: a later one does not bring the message back again.
+    const again = await compact($, { trigger: 'manual', messages: history }, next);
+    expect((again.messages as SessionMessage[]).some((m) => m.text.includes('HERON-7342'))).toBe(false);
   });
 });

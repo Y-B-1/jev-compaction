@@ -31,7 +31,7 @@ import {
 import { redactCompactionState, redactText } from '../src/redact.js';
 import { estimateTokens, goalFromMessages, hasMarker } from '../src/state.js';
 import { type MediaArchive, findMedia, mediaNote, placeMedia, splitMediaNotes } from '../src/media.js';
-import { MID_TURN_LEAD, type MidTurn, prunePresent, recordMidTurn, restoreMidTurn } from '../src/midturn.js';
+import { MID_TURN_LEAD, type MidTurn, recordMidTurn, restoreMidTurn } from '../src/midturn.js';
 import type { InjectStats } from '../src/inject.js';
 import { failedProseStats, trimRescue } from '../src/trim.js';
 import type {
@@ -1376,7 +1376,6 @@ async function compactHook(
     }
     // Messages the user sent mid-turn live only in the request that carried them
     // (see src/midturn.ts): put back any the history lacks before anything is cut.
-    prunePresent(pending, event.messages);
     const { messages: history, restored } = restoreMidTurn(event.messages, pending);
     if (restored > 0) log($, `kept ${restored} message${restored > 1 ? 's' : ''} you sent mid-turn`, report);
     const historyTokens = messageTokens(history);
@@ -1657,6 +1656,9 @@ export const register: Register = (on: On, options: PluginOptions) => {
     try {
       return await compactHook($, event, next, configured, once, current, pendingFor(event.agentId));
     } finally {
+      // A record serves one compaction: a Jev cut saved it in a row, Claude's summary keeps
+      // it its own way, and a skipped compaction leaves the engine's history as it was.
+      midTurn.delete(event.agentId ?? 'main');
       if (configured.compactionLog && configured.archiveResults && current.ledger) {
         try {
           const at = await $.clock.now();
