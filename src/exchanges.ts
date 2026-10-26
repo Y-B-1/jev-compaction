@@ -180,38 +180,50 @@ export function applyExchanges(
   const archived: ExchangeApplied['archived'] = [];
   const { messages } = scores;
   if (stats.failed !== undefined) return { messages: [...messages], archived, stats };
-  const replace = new Map<number, { to: number; row: Message }>();
+  // Dropped exchanges in a row (each prompt right after the previous one's work) share one
+  // marker and one file: their prompts stay, one after another, and one row follows them.
+  const runs: Exchange[][] = [];
   for (const e of scores.exchanges) {
     const n = scores.noul.get(e.key);
     if (n === undefined || n >= keepAt) continue;
-    const text = renderExchange(messages, e);
+    const run = runs.at(-1);
+    if (run && (run.at(-1) as Exchange).work[1] === e.prompt) run.push(e);
+    else runs.push([e]);
+  }
+  const replace = new Map<number, { to: number; row?: Message }>();
+  for (const run of runs) {
+    const text = run.map((e) => renderExchange(messages, e)).join('\n\n');
     const id = `exchange-${sha256Hex(text).slice(0, 12)}`;
     const path = cite(id, text);
     if (!path) continue;
     let chars = 0;
     let calls = 0;
-    for (let i = e.work[0]; i < e.work[1]; i++) {
-      chars += messageChars(messages[i] as Message);
-      calls += (messages[i] as Message).toolUses.length;
+    let rows = 0;
+    const tools = new Map<string, number>();
+    for (const e of run) {
+      rows += e.work[1] - e.work[0];
+      for (let i = e.work[0]; i < e.work[1]; i++) {
+        chars += messageChars(messages[i] as Message);
+        calls += (messages[i] as Message).toolUses.length;
+      }
+      for (const [tool, k] of e.tools) tools.set(tool, (tools.get(tool) ?? 0) + k);
     }
-    const reply = lastReply(messages, e.work);
-    const flat = reply.replace(/\s+/g, ' ');
-    const head = flat.length > REPLY_HEAD_CHARS ? `${headOf(flat, REPLY_HEAD_CHARS)}…` : flat;
-    const marker = `${MARKER}archived this exchange: ${e.work[1] - e.work[0]} rows, ${calls} tool calls${
-      calls > 0 ? ` (${toolList(e.tools)})` : ''
-    }, ${chars} chars; full text: ${path} (Read it if needed)]`;
+    const reply = lastReply(messages, (run.at(-1) as Exchange).work);
+    const head = reply.length > REPLY_HEAD_CHARS ? `${headOf(reply, REPLY_HEAD_CHARS)}…` : reply;
+    const what = run.length > 1 ? `the work of the ${run.length} exchanges above` : 'this exchange';
+    const marker = `${MARKER}archived ${what}: ${rows} rows, ${calls} tool calls${calls > 0 ? ` (${toolList(tools)})` : ''}, ${chars} chars; full text: ${path} (Read it if needed)]`;
     const row: Message = { role: 'assistant', text: head ? `${marker}\nLast reply: ${head}` : marker, toolUses: [] };
     if (messageChars(row) >= chars) continue;
-    replace.set(e.work[0], { to: e.work[1], row });
+    run.forEach((e, k) => replace.set(e.work[0], { to: e.work[1], ...(k === run.length - 1 ? { row } : {}) }));
     archived.push({ id, text, path });
-    stats.dropped++;
+    stats.dropped += run.length;
     stats.charsSaved += chars - messageChars(row);
   }
   const out: Message[] = [];
   for (let i = 0; i < messages.length; i++) {
     const hit = replace.get(i);
     if (hit) {
-      out.push(hit.row);
+      if (hit.row) out.push(hit.row);
       i = hit.to - 1;
     } else out.push(messages[i] as Message);
   }
