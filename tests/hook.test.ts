@@ -543,7 +543,7 @@ describe('register', () => {
   });
 
   it('installs no turn.complete hook, so compaction only runs when Claude Code compacts', () => {
-    expect(Object.keys(registered()).sort()).toEqual(['command.run', 'session.compact', 'session.start', 'tool.call']);
+    expect(Object.keys(registered()).sort()).toEqual(['command.run', 'prompt.attachment', 'session.compact', 'session.start', 'tool.call']);
   });
 
   it('skips a 429 retry the hook budget from next.budget cannot afford', async () => {

@@ -31,6 +31,7 @@ import {
 import { redactCompactionState, redactText } from '../src/redact.js';
 import { estimateTokens, goalFromMessages, hasMarker } from '../src/state.js';
 import { type MediaArchive, findMedia, mediaNote, placeMedia, splitMediaNotes } from '../src/media.js';
+import { MID_TURN_LEAD, type MidTurn, prunePresent, recordMidTurn, restoreMidTurn } from '../src/midturn.js';
 import type { InjectStats } from '../src/inject.js';
 import { failedProseStats, trimRescue } from '../src/trim.js';
 import type {
@@ -1345,6 +1346,7 @@ async function compactHook(
   configured: HookConfig,
   once: { inertNoticeLogged: boolean },
   report: Report,
+  pending: MidTurn[] = [],
 ): Promise<Awaited<ReturnType<Hook<'session.compact'>>>> {
   // A subagent's or a fork's own transcript is compacted like the main one;
   // only the context reading, which is the main conversation's, is left out.
@@ -1372,7 +1374,12 @@ async function compactHook(
     } catch {
       contextTokens = undefined;
     }
-    const historyTokens = messageTokens(event.messages);
+    // Messages the user sent mid-turn live only in the request that carried them
+    // (see src/midturn.ts): put back any the history lacks before anything is cut.
+    prunePresent(pending, event.messages);
+    const { messages: history, restored } = restoreMidTurn(event.messages, pending);
+    if (restored > 0) log($, `kept ${restored} message${restored > 1 ? 's' : ''} you sent mid-turn`, report);
+    const historyTokens = messageTokens(history);
     const historyInContext = messagesInContext && messagesInContext > 0 ? messagesInContext : historyTokens;
     const target = messageTarget(contextTokens, historyInContext, configured.minReductionRatio);
     if (contextTokens !== undefined) {
@@ -1415,7 +1422,7 @@ async function compactHook(
     }
     config.minReductionRatio = target;
     if (event.instructions?.trim()) {
-      const goal = config.goal || goalFromMessages(event.messages);
+      const goal = config.goal || goalFromMessages(history);
       config.goal = `${goal}\n\nCompaction instructions: ${event.instructions}`;
     }
     if (config.notificationTrim && !config.archiveResults && !once.inertNoticeLogged) {
@@ -1426,8 +1433,8 @@ async function compactHook(
     // Media leave with their rows' handles; without stripHandles the handles, and the media, stay.
     const media =
       api && (config.stripHandles ?? HOOK_DEFAULTS.stripHandles)
-        ? placeMedia(event.messages, findMedia(api), archive?.media)
-        : { messages: event.messages, images: 0, documents: 0, kept: 0 };
+        ? placeMedia(history, findMedia(api), archive?.media)
+        : { messages: history, images: 0, documents: 0, kept: 0 };
     if (media.images + media.documents + media.kept > 0) {
       log($, `media: ${media.images} images and ${media.documents} documents removed with a placeholder, ${media.kept} kept in the current prompt`, report);
     }
@@ -1445,7 +1452,7 @@ async function compactHook(
     if (next.signal.aborted) return interrupted($, report);
     for (const line of decisionLogLines(result)) log($, line, report);
     report.ledger = {
-      messagesBefore: event.messages.length,
+      messagesBefore: history.length,
       messagesAfter: messages.length,
       historyTokens,
       tokensAfter: messageTokens(messages),
@@ -1528,8 +1535,8 @@ async function compactHook(
       if (split > 0) {
         // hybridOriginals: the summarizer reads the older history as it was,
         // not with truncation notes in place of the text.
-        const original = config.hybridOriginals ? originalIndex(event.messages, messages, split) : undefined;
-        const older = original !== undefined ? event.messages.slice(0, original) : messages.slice(0, split);
+        const original = config.hybridOriginals ? originalIndex(history, messages, split) : undefined;
+        const older = original !== undefined ? history.slice(0, original) : messages.slice(0, split);
         if (config.hybridOriginals) log($, `hybrid: summarizing ${original !== undefined ? 'the original' : 'the trimmed (no matching prompt)'} older messages`, report);
         const summarized = await summary({ ...event, messages: older });
         if (summarized === partial) return partial;
@@ -1624,11 +1631,31 @@ export const register: Register = (on: On, options: PluginOptions) => {
     };
   });
 
+  // Records each message the user sends mid-turn, for the next compaction to keep
+  // (see src/midturn.ts). Only reads: the attachment goes on unchanged.
+  const midTurn = new Map<string, MidTurn[]>();
+  const pendingFor = (agentId: string | undefined): MidTurn[] => {
+    const key = agentId ?? 'main';
+    if (!midTurn.has(key)) midTurn.set(key, []);
+    return midTurn.get(key) as MidTurn[];
+  };
+  on('prompt.attachment', { type: 'queued_command' }, async ($, e, next) => {
+    if (e.text.includes(MID_TURN_LEAD)) {
+      try {
+        const tail = await $.session.messages(e.agentId ? { agentId: e.agentId } : {});
+        if (Array.isArray(tail)) recordMidTurn(pendingFor(e.agentId), e.text, tail);
+      } catch {
+        // A record only: a session that cannot be read leaves the message as the engine keeps it.
+      }
+    }
+    return next(e);
+  });
+
   on('session.compact', async ($, event, next) => {
     const current: Report = { lines: [] };
     if (event.trigger === 'precompute') return compactHook($, event, next, configured, once, current);
     try {
-      return await compactHook($, event, next, configured, once, current);
+      return await compactHook($, event, next, configured, once, current, pendingFor(event.agentId));
     } finally {
       if (configured.compactionLog && configured.archiveResults && current.ledger) {
         try {
