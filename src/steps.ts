@@ -3,7 +3,7 @@ import { TYPED_WORK } from './exchanges.js';
 import { type NotificationOptions, askNoul } from './notifications.js';
 import { PROSE_KEEP_LADDER } from './prose.js';
 import { sha256Hex } from './sha256.js';
-import { MARKER, isHostOnly, isPinned, isPromptRow, ownText, resultPreview } from './state.js';
+import { MARKER, hasMarker, isHostOnly, isPinned, isPromptRow, ownText, resultPreview } from './state.js';
 import type { CompactResult, JevAsker, JevQuestions, Message, NoulQuestion } from './types.js';
 
 /**
@@ -128,7 +128,7 @@ function lastText(messages: readonly Message[], step: Step): string {
 
 /** A row made only of the plugin's own marker text: it carries no work of its own. */
 const markerOnly = (m: Message | undefined): boolean =>
-  m !== undefined && m.role === 'assistant' && m.toolUses.length === 0 && m.text.includes(MARKER) && ownText(m.text) === '';
+  m !== undefined && m.role === 'assistant' && m.toolUses.length === 0 && hasMarker(m.text) && ownText(m.text) === '';
 
 /** One marker row for `rows` archived rows in `path`, with the last thing the assistant wrote on one line. */
 function markerRow(rows: number, tools: ReadonlyMap<string, number>, chars: number, path: string, note: string): Message {

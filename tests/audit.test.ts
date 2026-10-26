@@ -180,10 +180,10 @@ describe('dropped-call notes', () => {
 
 describe('recognising earlier cuts', () => {
   it('treats only a real note as an earlier cut, not a file that quotes the marker', () => {
-    expect(wasTruncated('head\n[fast-jev-compaction truncated 1200 chars; full output: a.txt]')).toBe(true);
-    expect(wasTruncated("  12→  const note = `[fast-jev-compaction truncated ${n} chars`;")).toBe(false);
-    expect(wasCapped('head\n[fast-jev-compaction kept the head and tail of 9000 chars, 5000 omitted]\ntail')).toBe(true);
-    expect(wasCapped("const CAPPED = '[fast-jev-compaction kept the head and tail of ';")).toBe(false);
+    expect(wasTruncated('head\n[jev-compaction truncated 1200 chars; full output: a.txt]')).toBe(true);
+    expect(wasTruncated("  12→  const note = `[jev-compaction truncated ${n} chars`;")).toBe(false);
+    expect(wasCapped('head\n[jev-compaction kept the head and tail of 9000 chars, 5000 omitted]\ntail')).toBe(true);
+    expect(wasCapped("const CAPPED = '[jev-compaction kept the head and tail of ';")).toBe(false);
   });
 });
 
@@ -243,7 +243,7 @@ describe('truncated failing results', () => {
 
   it('keeps the end of a failing result after its note', () => {
     const text = cut(true);
-    expect(text).toMatch(/\[fast-jev-compaction truncated \d+ chars \(error\)/);
+    expect(text).toMatch(/\[jev-compaction truncated \d+ chars \(error\)/);
     expect(text.endsWith('AssertionError: deep 7f3a\n')).toBe(true);
     expect(text.length).toBeLessThan(1200);
   });

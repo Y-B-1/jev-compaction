@@ -47,7 +47,7 @@ const transcript = () => [
   { role: 'user', text: 'go', toolUses: [] },
 ];
 const lines = (files: Map<string, string>) =>
-  (files.get('/w/.claude/fast-jev-compaction/log.jsonl') ?? '').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  (files.get('/w/.claude/jev-compaction/log.jsonl') ?? '').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
 
 describe('compaction ledger', () => {
   it('appends one line per compaction with each call’s tool, scores, decision and archive file', async () => {
@@ -57,14 +57,14 @@ describe('compaction ledger', () => {
     expect(entry).toMatchObject({ trigger: 'manual', subagent: false, model: 'jev-latest', messagesBefore: 5 });
     expect(entry.outcome).toMatch(/^Compacted with Jev/);
     expect(entry.calls).toEqual([['Bash', 'drop_result', 'result_dropped', 0.9, 0.01, 'toolu_A.txt']]);
-    expect(files.has('/w/.claude/fast-jev-compaction/toolu_A.txt')).toBe(true);
+    expect(files.has('/w/.claude/jev-compaction/toolu_A.txt')).toBe(true);
   });
 
   it('notes an archive file read back with Read, Grep or Bash, and nothing else', async () => {
     const { $, files, next, hook } = setup();
-    await hook('tool.call', 'Read')($, { tool: 'Read', file_path: '/w/.claude/fast-jev-compaction/toolu_A.txt' }, next({}));
-    await hook('tool.call', 'Grep')($, { tool: 'Grep', pattern: 'error', path: '/w/.claude/fast-jev-compaction' }, next({}));
-    await hook('tool.call', 'Bash')($, { tool: 'Bash', command: 'cat .claude/fast-jev-compaction/toolu_B.txt' }, next({}));
+    await hook('tool.call', 'Read')($, { tool: 'Read', file_path: '/w/.claude/jev-compaction/toolu_A.txt' }, next({}));
+    await hook('tool.call', 'Grep')($, { tool: 'Grep', pattern: 'error', path: '/w/.claude/jev-compaction' }, next({}));
+    await hook('tool.call', 'Bash')($, { tool: 'Bash', command: 'cat .claude/jev-compaction/toolu_B.txt' }, next({}));
     await hook('tool.call', 'Read')($, { tool: 'Read', file_path: '/w/src/app.ts' }, next({}));
     expect(lines(files).map((l) => [l.via, l.readBack])).toEqual([
       ['Read', ['toolu_A.txt']],
@@ -76,12 +76,12 @@ describe('compaction ledger', () => {
   it('writes nothing when compactionLog is off', async () => {
     const { $, files, next, hook } = setup({ compactionLog: false });
     await hook('session.compact')($, { trigger: 'manual', messages: transcript() }, next());
-    await hook('tool.call', 'Read')($, { tool: 'Read', file_path: '/w/.claude/fast-jev-compaction/toolu_A.txt' }, next({}));
-    expect(files.has('/w/.claude/fast-jev-compaction/log.jsonl')).toBe(false);
+    await hook('tool.call', 'Read')($, { tool: 'Read', file_path: '/w/.claude/jev-compaction/toolu_A.txt' }, next({}));
+    expect(files.has('/w/.claude/jev-compaction/log.jsonl')).toBe(false);
   });
 
   it('finds archive files named in a tool input', () => {
-    expect(archiveFilesNamed({ command: 'grep -n x .claude/fast-jev-compaction/a.txt .claude/fast-jev-compaction/b.txt' })).toEqual(['a.txt', 'b.txt']);
+    expect(archiveFilesNamed({ command: 'grep -n x .claude/jev-compaction/a.txt .claude/jev-compaction/b.txt' })).toEqual(['a.txt', 'b.txt']);
     expect(archiveFilesNamed({ file_path: 'src/a.txt' })).toEqual([]);
   });
 });

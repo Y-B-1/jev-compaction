@@ -1,7 +1,7 @@
 // Suggests per-tool keep thresholds from the plugin's own record (compactionLog): each compaction's per-call
 // scores and decisions, and each archive file the assistant later read back. A dropped output that was read
 // back was needed after all; a tool whose drops are often read back is cut too eagerly at its threshold.
-// `npx tsx eval/calibrate.ts [log.jsonl ...]` (default: ./.claude/fast-jev-compaction/log.jsonl). Prints a
+// `npx tsx eval/calibrate.ts [log.jsonl ...]` (default: ./.claude/jev-compaction/log.jsonl). Prints a
 // table and a `keepThresholdByTool` value; reads only the log, never transcript text.
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -90,7 +90,7 @@ export function render(result: ReturnType<typeof calibrate>): string {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const paths = process.argv.slice(2);
-  const files = paths.length > 0 ? paths : ['.claude/fast-jev-compaction/log.jsonl'];
+  const files = paths.length > 0 ? paths : ['.claude/jev-compaction/log.jsonl'];
   const lines = files.filter((p) => existsSync(p)).flatMap((p) => readFileSync(p, 'utf8').split('\n'));
   if (lines.length === 0) {
     console.log(`no log found (${files.join(', ')}); turn on compactionLog and archiveResults, then compact a few sessions`);

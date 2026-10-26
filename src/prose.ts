@@ -2,7 +2,7 @@ import { messageChars, reductionRatio, splitsSurrogatePair } from './compact.js'
 import { MAX_QUESTIONS_PER_REQUEST, noulAnswer } from './request.js';
 import { ERROR_LINE, SCAN, salvageBlock } from './salvage.js';
 import { sha256Hex } from './sha256.js';
-import { MARKER, collectToolCalls, estimateTokens, goalFromMessages, isPinned, truncate } from './state.js';
+import { MARKER, collectToolCalls, startsWithMarker, estimateTokens, goalFromMessages, isPinned, truncate } from './state.js';
 import type { ArchiveResult, CallDecision, CompactResult, JevAsker, JevQuestions, Message, ToolUse } from './types.js';
 
 /**
@@ -43,7 +43,7 @@ function isProtectedLine(line: string): boolean {
     /^(?: {4,}|\t)/.test(line) ||
     /^ {0,3}[|#]/.test(line) ||
     /^[ \t]*[$%] /.test(line) ||
-    line.startsWith(MARKER) ||
+    startsWithMarker(line) ||
     ERROR_LINE.test(line) ||
     !/[A-Za-z]/.test(line)
   );
@@ -252,7 +252,7 @@ function withCommas(n: number): string {
   return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
-export const ELIDED_MARKER = '[fast-jev-compaction elided ';
+export const ELIDED_MARKER = '[jev-compaction elided ';
 
 /**
  * A code body cut to its first `headChars`, a note naming what was elided (`label` is
@@ -267,7 +267,7 @@ export function elideBody(
 ): string {
   // A body an earlier pass already cut stays as it is: cutting it again would
   // archive the stub over the full text saved the first time.
-  if (text.length <= headChars + 120 || text.includes(ELIDED_MARKER)) return text;
+  if (text.length <= headChars + 120 || text.includes(ELIDED_MARKER) || text.includes('[fast-jev-compaction elided ')) return text;
   const cut = Math.max(0, splitsSurrogatePair(text, headChars) ? headChars - 1 : headChars);
   const head = cut > 0 ? `${text.slice(0, cut)}\n` : '';
   const note = `${ELIDED_MARKER}${withCommas(text.length - cut)} chars of ${label}${

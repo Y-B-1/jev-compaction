@@ -5,7 +5,7 @@ import { collectToolCalls } from '../src/state.js';
 
 type Hook = (...args: any[]) => Promise<any>;
 
-const DIR = '/w/.claude/fast-jev-compaction';
+const DIR = '/w/.claude/jev-compaction';
 
 /** The engine as the compact hook reads it, with the conversation's Messages API form. */
 const setup = (api: unknown[], options: Record<string, unknown> = {}) => {
@@ -163,7 +163,7 @@ describe('images and documents at compaction', () => {
 });
 
 describe('a placeholder survives a later cut of its result', () => {
-  const note = `[image removed by compaction · shot.png (image/png) · described then as: "A login form with a red error banner." · view again: Read /very/long/project/path/${'d'.repeat(120)}/shot.png · archived copy: /w/.claude/fast-jev-compaction/img-0123456789ab.png.b64]`;
+  const note = `[image removed by compaction · shot.png (image/png) · described then as: "A login form with a red error banner." · view again: Read /very/long/project/path/${'d'.repeat(120)}/shot.png · archived copy: /w/.claude/jev-compaction/img-0123456789ab.png.b64]`;
   const tool = { tool_use_id: 'x', tool: 'Read', input: { file_path: '/w/shot.png' }, text: '' };
   const messages = [
     { role: 'user' as const, text: 's', toolUses: [] },

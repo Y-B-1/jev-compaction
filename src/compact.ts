@@ -457,7 +457,7 @@ export function headOf(text: string, chars: number): string {
 const CAP_MARGIN = 600;
 
 /** Starts the note of a result Jev kept whole but that was cut to `maxKeptResultChars`. */
-export const CAPPED_MARKER = '[fast-jev-compaction kept the head and tail of ';
+export const CAPPED_MARKER = '[jev-compaction kept the head and tail of ';
 
 /**
  * A result Jev kept whole, cut to about `capChars`: its head, then its tail
@@ -490,17 +490,17 @@ function cappedResultText(
  * plugin's own source, a Read with line numbers) is not mistaken for one.
  */
 export function wasTruncated(text: string): boolean {
-  return /(?:^|\n)\[fast-jev-compaction truncated \d+ chars/.test(text);
+  return /(?:^|\n)\[(?:fast-)?jev-compaction truncated \d+ chars/.test(text);
 }
 
 /** Whether `text` is a result an earlier compaction capped (see `wasTruncated`). */
 export function wasCapped(text: string): boolean {
-  return /\n\[fast-jev-compaction kept the head and tail of \d+ chars/.test(text);
+  return /\n\[(?:fast-)?jev-compaction kept the head and tail of \d+ chars/.test(text);
 }
 
 /** The archive path an earlier cap cited in `text`, if any. */
 function cappedPath(text: string): string | undefined {
-  const at = text.indexOf(CAPPED_MARKER);
+  const at = text.search(/\[(?:fast-)?jev-compaction kept the head and tail of /);
   if (at === -1) return undefined;
   return /; full output: ([^\]\n]+)\]/.exec(text.slice(at))?.[1];
 }
@@ -522,7 +522,7 @@ function truncatedResultText(
   const cut = splitsSurrogatePair(text, headChars) ? headChars - 1 : headChars;
   const head = cut > 0 ? `${text.slice(0, cut)}\n` : '';
   const where = archivedPath ? `; full output: ${archivedPath}` : '; re-run the tool if needed';
-  const note = `[fast-jev-compaction truncated ${text.length - cut} chars${isError ? ' (error)' : ''}${where}]`;
+  const note = `[jev-compaction truncated ${text.length - cut} chars${isError ? ' (error)' : ''}${where}]`;
   // Identifiers and error lines recovered from the dropped tail: the head is
   // preamble for a listing or a build log, and the useful parts live further
   // down where they would otherwise be lost until the tool is re-run.
@@ -554,7 +554,7 @@ function droppedCallNote(tool: ToolUse, archivedPath: string | undefined, salvag
     input = '{}';
   }
   if (input.length > 160) input = `${headOf(input, 159)}…`;
-  const note = `[fast-jev-compaction removed the ${tool.tool} call ${input}${
+  const note = `[jev-compaction removed the ${tool.tool} call ${input}${
     archivedPath ? `; full output: ${archivedPath}` : ''
   }]`;
   const salvaged = REPRODUCIBLE_TOOLS.has(tool.tool) ? '' : salvageBlock(tool.text ?? '', salvageChars);

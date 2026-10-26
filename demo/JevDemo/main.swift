@@ -201,7 +201,7 @@ final class Demo: ObservableObject {
             }
 
             phase = .waiting
-            status = "Context window at \(Int(context * 100))% — running fast-jev-compaction"
+            status = "Context window at \(Int(context * 100))% — running jev-compaction"
             try await sleep(1.6)
 
             phase = .scanning
@@ -471,7 +471,7 @@ struct TerminalView: View {
             Text("  cwd: ~/work/checkout-service").foregroundStyle(Palette.dim)
             HStack(spacing: 0) {
                 Text("  compaction: ").foregroundStyle(Palette.dim)
-                Text("fast-jev-compaction").foregroundStyle(Palette.cyan)
+                Text("jev-compaction").foregroundStyle(Palette.cyan)
                 Text(" · jev-latest · verbatim, no summaries").foregroundStyle(Palette.dim)
             }
         }

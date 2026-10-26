@@ -47,7 +47,7 @@ describe('marker rows', () => {
     for (const plan of planSteps(scores, (id) => `arch/${id}.txt`)) expect(count(plan.row.text, MARKER)).toBe(1);
     expect(ownText(`${OLD}\nThe real reply.`)).toBe('The real reply.');
     // A reply that only quotes the marker string keeps all its lines.
-    const quoting = 'The row reads `[fast-jev-compaction archived 2 rows]` and I will fix it.\nNote: the cache key must not change.\nDone.';
+    const quoting = 'The row reads `[jev-compaction archived 2 rows]` and I will fix it.\nNote: the cache key must not change.\nDone.';
     expect(ownText(quoting)).toBe(quoting);
   });
 

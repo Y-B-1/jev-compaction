@@ -112,7 +112,7 @@ describe('hybridOriginals', () => {
 
   it('hands the summarizer the original older rows instead of their truncated form', async () => {
     const trimmed = await run(false);
-    expect(JSON.stringify(trimmed.older)).toContain('[fast-jev-compaction truncated');
+    expect(JSON.stringify(trimmed.older)).toContain('[jev-compaction truncated');
     const original = await run(true);
     expect(original.older).toEqual(transcript().slice(0, original.older.length));
     expect(original.older.length).toBe(trimmed.older.length);

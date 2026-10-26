@@ -115,7 +115,7 @@ describe('resume-safe handles (#89, #137)', () => {
     expect(assistants[0]?.toolUses.map((t) => t.tool_use_id)).toEqual(['a', 'b', 'c', 'd']);
     const results = messages.filter((m) => (m.toolResults?.length ?? 0) > 0);
     expect(results).toHaveLength(1);
-    expect(results[0]?.toolResults?.[2]?.text).toContain('[fast-jev-compaction truncated');
+    expect(results[0]?.toolResults?.[2]?.text).toContain('[jev-compaction truncated');
     expect(messages.filter((m) => m.toolUses.length + (m.toolResults?.length ?? 0) > 0).every((m) => m.handle === undefined)).toBe(true);
   });
 
@@ -135,7 +135,7 @@ describe('resume-safe handles (#89, #137)', () => {
     };
     // x loses call and result; n1 and n2 are kept
     const { messages: out } = await compactSession(messages, config, jevFetch((key) => (key.endsWith('_t1') ? 0 : 0.9)));
-    const note = out.find((m) => m.text.includes('[fast-jev-compaction removed the Read call'));
+    const note = out.find((m) => m.text.includes('[jev-compaction removed the Read call'));
     expect(note?.toolUses).toEqual([]);
     const newest = out.filter((m) => m.role === 'assistant' && m.toolUses.length > 0);
     expect(newest.map((m) => m.handle)).toEqual(['m2-n1', 'm2-n2']);
@@ -280,7 +280,7 @@ describe('exact repeats', () => {
     expect(asked).toEqual(['call_t2', 'result_t2']);
     expect(result.decisions[0]).toMatchObject({ reason: 'duplicate', action: 'drop_result' });
     expect(result.decisions[1]).toMatchObject({ reason: 'kept' });
-    expect(result.messages[2]?.toolResults?.[0]?.text).toContain('[fast-jev-compaction truncated');
+    expect(result.messages[2]?.toolResults?.[0]?.text).toContain('[jev-compaction truncated');
     expect(result.stats.duplicates).toBe(1);
   });
 
@@ -308,7 +308,7 @@ describe('exact repeats', () => {
     ];
     const { messages: out, removed } = dedupeBlocks(messages, 2);
     expect(removed).toBe(1);
-    expect(out[1]?.text).toMatch(/^first \[fast-jev-compaction removed a repeated <system-reminder> block \(\d+ chars\); a later copy is kept\]$/);
+    expect(out[1]?.text).toMatch(/^first \[jev-compaction removed a repeated <system-reminder> block \(\d+ chars\); a later copy is kept\]$/);
     // a changed message carries no engine identity
     expect((out[1] as SessionMessage).handle).toBeUndefined();
     expect(out[3]).toBe(messages[3]);
@@ -327,7 +327,7 @@ describe('exact repeats', () => {
     ];
     const { messages: out, removed } = dedupeBlocks(messages, 0);
     expect(removed).toBe(1);
-    expect(out[1]?.text).toBe(`[fast-jev-compaction removed a repeated message (${skill.length} chars); a later copy is kept]`);
+    expect(out[1]?.text).toBe(`[jev-compaction removed a repeated message (${skill.length} chars); a later copy is kept]`);
     expect(out[3]).toBe(messages[3]);
   });
 
@@ -344,7 +344,7 @@ describe('exact repeats', () => {
     expect(removed).toBe(1);
     // the prompt may hold images the hook cannot see: left as is
     expect(out[1]).toBe(messages[1]);
-    expect(out[2]?.text).toMatch(/^\[fast-jev-compaction removed a repeated <system-reminder> block/);
+    expect(out[2]?.text).toMatch(/^\[jev-compaction removed a repeated <system-reminder> block/);
     expect(out[2]?.toolResults).toEqual([{ tool_use_id: 'a', text: 'r' }]);
   });
 

@@ -106,15 +106,42 @@ describe('applyExchanges', () => {
     expect(out.messages.filter((m) => m.role === 'user' && m.text.length > 0).map((m) => m.text)).toEqual(
       messages.filter((m) => m.role === 'user' && m.text.length > 0).map((m) => m.text),
     );
-    const marker = out.messages[3]!;
-    expect(marker.text).toMatch(/^\[fast-jev-compaction archived this exchange: 3 rows, 1 tool calls \(Read\), \d+ chars; full text: arch\/exchange-[0-9a-f]{12}\.txt/);
-    expect(marker.text).toContain('Last reply: The logging module writes to stderr');
-    expect(out.messages[5]!.text).toContain('2 tool calls (Grep, Read)');
+    // Two dropped exchanges in a row: both prompts stay, then one marker and one file for their work.
+    expect(out.messages.slice(2, 4).map((m) => m.text)).toEqual(['look at the logging module', 'check the old cache layer']);
+    const marker = out.messages[4]!;
+    expect(marker.text).toMatch(
+      /^\[jev-compaction archived the work of the 2 exchanges above: 8 rows, 3 tool calls \(Read x2, Grep\), \d+ chars; full text: arch\/exchange-[0-9a-f]{12}\.txt \(Read it if needed\)\]/,
+    );
+    expect(marker.text).toContain('Last reply: The cache layer is unused');
     const ids = (ms: Message[]) => ms.flatMap((m) => [...m.toolUses.map((u) => u.tool_use_id), ...(m.toolResults ?? []).map((r) => r.tool_use_id)]);
     expect(ids(out.messages)).toEqual([]);
-    expect(files.size).toBe(2);
-    expect([...files.values()].every((t) => t.includes(BIG))).toBe(true);
-    expect(out.messages.slice(6)).toEqual(messages.slice(12));
+    expect(files.size).toBe(1);
+    const [archived] = [...files.values()];
+    expect(archived!.split(BIG).length - 1).toBe(3);
+    expect(archived).toContain('request (entry 2)');
+    expect(archived).toContain('request (entry 6)');
+    expect(out.archived).toHaveLength(1);
+    expect(out.messages.slice(5)).toEqual(messages.slice(12));
+  });
+
+  it('starts a new marker after an exchange that stays', async () => {
+    const messages = [
+      ...session().slice(0, 12),
+      user('review the old config loader'),
+      call('t4', 'Read', { file_path: 'src/config.ts' }),
+      result('t4', BIG),
+      reply('The config loader is fine.'),
+      ...session().slice(12),
+    ];
+    const keyed: JevAsker = {
+      ask: async (_state, questions) => ({ answers: Object.fromEntries(Object.keys(questions).map((k) => [k, { noul: k === 'x2' ? 0.9 : 0.01 }])) }),
+    } as JevAsker;
+    const out = applyExchanges(await scoreExchanges(messages, keyed, options), 0.05, (id) => `arch/${id}.txt`);
+    expect(out.stats.dropped).toBe(2);
+    const markers = out.messages.filter((m) => m.text.startsWith('[jev-compaction archived this exchange: '));
+    expect(markers).toHaveLength(2);
+    expect(out.messages.some((m) => m.text.includes('archived the work of'))).toBe(false);
+    expect(out.archived).toHaveLength(2);
   });
 
   it('keeps an exchange Jev scores at or above the cut-off, one with no answer, and one with no archive path', async () => {
@@ -156,9 +183,10 @@ describe('exchange drop through compactSession', () => {
     const out = await compactSession(sessionRows(), cfg() as any, fetchWith(0.01), a);
     expect(out.exchanges?.cutoff).toBe(0.05);
     expect(out.exchanges?.stats.dropped).toBe(2);
-    expect(out.messages.some((m) => m.text.startsWith('[fast-jev-compaction archived this exchange'))).toBe(true);
+    // The two dropped exchanges are adjacent: one marker and one file cover both.
+    expect(out.messages.filter((m) => m.text.startsWith('[jev-compaction archived the work of the 2 exchanges above'))).toHaveLength(1);
     expect(out.messages.map((m) => m.text)).toContain('check the old cache layer');
-    expect([...a.files.values()].filter((t) => t.startsWith('request (entry'))).toHaveLength(2);
+    expect([...a.files.values()].filter((t) => t.startsWith('request (entry'))).toHaveLength(1);
   });
 
   it('runs when exchangeDrop is the only stage on', async () => {

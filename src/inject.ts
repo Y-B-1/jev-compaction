@@ -1,7 +1,7 @@
 import { type NotificationOptions, type Rung, askNoul, fold } from './notifications.js';
 import { PROSE_KEEP_LADDER } from './prose.js';
 import { sha256Hex } from './sha256.js';
-import { type InjectKind, MARKER, goalText, injectedSpans, isPinned, isPromptRow, resultPreview } from './state.js';
+import { type InjectKind, MARKER, goalText, hasMarker, injectedSpans, isPinned, isPromptRow, resultPreview } from './state.js';
 import type { JevAsker, JevQuestions, Message, NoulQuestion } from './types.js';
 
 export { type InjectKind, LONG_USER_CHARS, goalText, injectedSpans, isPromptRow } from './state.js';
@@ -74,7 +74,7 @@ export function findBlocks(
   const blocks: Block[] = [];
   messages.forEach((message, index) => {
     if (!isPromptRow(message) || goal.has(index) || isPinned(index, messages.length, preserveRecentMessages)) return;
-    if (message.text.includes(MARKER)) return;
+    if (hasMarker(message.text)) return;
     const engineHeld = (message as { handle?: string }).handle !== undefined;
     for (const { kind, span } of injectedSpans(message.text)) {
       if (span[1] - span[0] <= headChars + FOLD_MARGIN) continue;

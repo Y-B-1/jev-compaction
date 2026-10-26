@@ -29,8 +29,10 @@ import {
   type ProseStats,
 } from '../src/prose.js';
 import { redactCompactionState, redactText } from '../src/redact.js';
-import { MARKER, estimateTokens, goalFromMessages } from '../src/state.js';
+import { estimateTokens, goalFromMessages, hasMarker } from '../src/state.js';
 import { type MediaArchive, findMedia, mediaNote, placeMedia, splitMediaNotes } from '../src/media.js';
+import { MID_TURN_LEAD, type MidTurn, recordMidTurn, restoreMidTurn } from '../src/midturn.js';
+import { foldNoteChains } from '../src/chains.js';
 import type { InjectStats } from '../src/inject.js';
 import { failedProseStats, trimRescue } from '../src/trim.js';
 import type {
@@ -484,7 +486,7 @@ function mergeRun(run: readonly SessionMessage[]): SessionMessage {
 /**
  * Puts the compacted conversation in the shape that survives `--resume` and
  * keeps parallel tool calls paired. Two engine behaviours drive it
- * (anthropics/claude-code#95328, fast-jev-compaction#89 and #137):
+ * (anthropics/claude-code#95328, tamaratran/fast-jev-compaction#89 and #137):
  *
  * - A kept message that still carries its `handle` is re-saved pointing
  *   behind the compaction, and on `--resume` the engine walks back through it
@@ -592,7 +594,9 @@ export type StepsOutcome = { pass?: StepOutcome['pass']; cutoff?: number; stats:
 /** What the exchange drop did: the cut-off it settled on, or none when no cut-off reached the minimum or the stage failed. */
 export type ExchangeOutcome = { cutoff?: number; stats: ExchangeStats };
 
-const ARCHIVE_DIR = '.claude/fast-jev-compaction';
+const ARCHIVE_DIR = '.claude/jev-compaction';
+/** Where archives went before the plugin was renamed (0.18.0 and earlier); old markers still cite it. */
+const OLD_ARCHIVE_DIR = '.claude/fast-jev-compaction';
 
 export type ArchiveWriter = {
   /** Names the file a dropped call's or result's full text will be written to. */
@@ -628,7 +632,7 @@ export async function archiveDir($: {
 }
 
 /**
- * Saves what compaction drops to `dir` (default `.claude/fast-jev-compaction/`), so a detail
+ * Saves what compaction drops to `dir` (default `.claude/jev-compaction/`), so a detail
  * buried in a dropped call or result can still be read back later. The text is
  * written with the same redaction the Jev request applies, so a credential in
  * it is replaced by `[REDACTED]` rather than stored, and the rest is kept.
@@ -704,8 +708,8 @@ export function archiveFilesNamed(input: Record<string, unknown>): string[] {
   const text = ['file_path', 'path', 'command', 'pattern']
     .map((key) => (typeof input[key] === 'string' ? (input[key] as string) : ''))
     .join(' ');
-  if (!text.includes(ARCHIVE_DIR)) return [];
-  const files = [...text.matchAll(/fast-jev-compaction\/([A-Za-z0-9_.-]+\.txt)/g)].map((m) => m[1]!);
+  if (!text.includes(ARCHIVE_DIR) && !text.includes(OLD_ARCHIVE_DIR)) return [];
+  const files = [...text.matchAll(/\.claude\/(?:fast-)?jev-compaction\/([A-Za-z0-9_.-]+\.txt)/g)].map((m) => m[1]!);
   return files.length > 0 ? [...new Set(files)] : ['*'];
 }
 
@@ -750,7 +754,7 @@ async function writeIndex(
       index = '';
     }
     if (index.length > INDEX_MAX_CHARS) return;
-    if (!index) index = '# fast-jev-compaction archive\n\nOne line per archived item: its file, then how it starts.\n\n';
+    if (!index) index = '# jev-compaction archive\n\nOne line per archived item: its file, then how it starts.\n\n';
     const lines: string[] = [];
     for (const [file, text] of files) {
       const name = file.slice(file.lastIndexOf('/') + 1);
@@ -798,10 +802,18 @@ export async function compactSession(
   const trimNotifications =
     (config.notificationTrim ?? HOOK_DEFAULTS.notificationTrim) && archive !== undefined;
   const trimInjected = (config.injectTrim ?? HOOK_DEFAULTS.injectTrim) && archive !== undefined;
-  const finish = (out: SessionCompaction): SessionCompaction =>
-    (config.stripHandles ?? HOOK_DEFAULTS.stripHandles)
-      ? { ...out, messages: resumeSafeMessages(out.messages) }
-      : out;
+  // Last: fold chains of note-only rows between prompts into one note (see src/chains.ts).
+  const finish = async (out: SessionCompaction): Promise<SessionCompaction> => {
+    let messages = out.messages;
+    if (archive) {
+      const chains = foldNoteChains(messages, resolveOptions(config).preserveRecentMessages, archive.cite);
+      if (chains.folded > 0) {
+        messages = chains.messages;
+        await archive.flush();
+      }
+    }
+    return (config.stripHandles ?? HOOK_DEFAULTS.stripHandles) ? { ...out, messages: resumeSafeMessages(messages) } : { ...out, messages };
+  };
   const dropping = (config.exchangeDrop ?? HOOK_DEFAULTS.exchangeDrop) && archive !== undefined;
   const stepping = (config.stepTrim ?? HOOK_DEFAULTS.stepTrim) && archive !== undefined;
   if (reductionRatio(result) >= config.minReductionRatio) {
@@ -1302,12 +1314,12 @@ export function formatBreakdown(b: ContextBreakdown): string {
 
 function interrupted($: UiLog, report?: Report): { skip: string } {
   log($, 'compaction interrupted; nothing changed', report);
-  return { skip: 'fast-jev-compaction: interrupted' };
+  return { skip: 'jev-compaction: interrupted' };
 }
 
 /** An error's message for a toast: its first line, at most 100 characters. */
 function shortError(error: unknown): string {
-  const text = (error instanceof Error ? error.message : String(error)).split('\n')[0]!.replace(/^fast-jev-compaction: /, '');
+  const text = (error instanceof Error ? error.message : String(error)).split('\n')[0]!.replace(/^(?:fast-)?jev-compaction: /, '');
   return text.length > 100 ? `${text.slice(0, 99)}…` : text;
 }
 
@@ -1343,13 +1355,14 @@ async function compactHook(
   configured: HookConfig,
   once: { inertNoticeLogged: boolean },
   report: Report,
+  pending: MidTurn[] = [],
 ): Promise<Awaited<ReturnType<Hook<'session.compact'>>>> {
   // A subagent's or a fork's own transcript is compacted like the main one;
   // only the context reading, which is the main conversation's, is left out.
   // `precompute` computes nothing yet and installs no result, so there is
   // nothing useful for Jev to do here.
   if (event.trigger === 'precompute') {
-    return { skip: 'fast-jev-compaction does not handle speculative compactions' };
+    return { skip: 'jev-compaction does not handle speculative compactions' };
   }
   try {
     const config = { ...configured, apiKey: await getApiKey($, configured) };
@@ -1370,7 +1383,11 @@ async function compactHook(
     } catch {
       contextTokens = undefined;
     }
-    const historyTokens = messageTokens(event.messages);
+    // Messages the user sent mid-turn live only in the request that carried them
+    // (see src/midturn.ts): put back any the history lacks before anything is cut.
+    const { messages: history, restored } = restoreMidTurn(event.messages, pending);
+    if (restored > 0) log($, `kept ${restored} message${restored > 1 ? 's' : ''} you sent mid-turn`, report);
+    const historyTokens = messageTokens(history);
     const historyInContext = messagesInContext && messagesInContext > 0 ? messagesInContext : historyTokens;
     const target = messageTarget(contextTokens, historyInContext, configured.minReductionRatio);
     if (contextTokens !== undefined) {
@@ -1401,7 +1418,7 @@ async function compactHook(
           `skipped (${reason}, builtin fallback disabled for ${event.trigger ?? 'this'} trigger)`,
           report,
         );
-        return { skip: 'fast-jev-compaction: below minimum reduction, builtin fallback disabled' };
+        return { skip: 'jev-compaction: below minimum reduction, builtin fallback disabled' };
       }
       notify(
         $,
@@ -1413,7 +1430,7 @@ async function compactHook(
     }
     config.minReductionRatio = target;
     if (event.instructions?.trim()) {
-      const goal = config.goal || goalFromMessages(event.messages);
+      const goal = config.goal || goalFromMessages(history);
       config.goal = `${goal}\n\nCompaction instructions: ${event.instructions}`;
     }
     if (config.notificationTrim && !config.archiveResults && !once.inertNoticeLogged) {
@@ -1424,8 +1441,8 @@ async function compactHook(
     // Media leave with their rows' handles; without stripHandles the handles, and the media, stay.
     const media =
       api && (config.stripHandles ?? HOOK_DEFAULTS.stripHandles)
-        ? placeMedia(event.messages, findMedia(api), archive?.media)
-        : { messages: event.messages, images: 0, documents: 0, kept: 0 };
+        ? placeMedia(history, findMedia(api), archive?.media)
+        : { messages: history, images: 0, documents: 0, kept: 0 };
     if (media.images + media.documents + media.kept > 0) {
       log($, `media: ${media.images} images and ${media.documents} documents removed with a placeholder, ${media.kept} kept in the current prompt`, report);
     }
@@ -1443,7 +1460,7 @@ async function compactHook(
     if (next.signal.aborted) return interrupted($, report);
     for (const line of decisionLogLines(result)) log($, line, report);
     report.ledger = {
-      messagesBefore: event.messages.length,
+      messagesBefore: history.length,
       messagesAfter: messages.length,
       historyTokens,
       tokensAfter: messageTokens(messages),
@@ -1451,7 +1468,7 @@ async function compactHook(
       historyInContext,
       reduction: Math.round(reductionRatio(result) * 1000) / 1000,
       // Plugin marker rows left in the history, and what each stage that ran settled on.
-      markersAfter: messages.filter((m) => m.text.includes(MARKER)).length,
+      markersAfter: messages.filter((m) => hasMarker(m.text)).length,
       stages: {
         tool: Math.round(reductionRatio(result) * 1000) / 1000,
         ...(prose ? { prose: prose.cutoff ?? null } : {}),
@@ -1505,7 +1522,7 @@ async function compactHook(
           `skipped (below ${percent(configured.minReductionRatio)} minimum${tried}, builtin fallback disabled for ${event.trigger ?? 'this'} trigger: ${summarize(result)})`,
           report,
         );
-        return { skip: 'fast-jev-compaction: below minimum reduction, builtin fallback disabled' };
+        return { skip: 'jev-compaction: below minimum reduction, builtin fallback disabled' };
       }
       const summary = async (e: typeof event): ReturnType<typeof next> => {
         try {
@@ -1526,8 +1543,8 @@ async function compactHook(
       if (split > 0) {
         // hybridOriginals: the summarizer reads the older history as it was,
         // not with truncation notes in place of the text.
-        const original = config.hybridOriginals ? originalIndex(event.messages, messages, split) : undefined;
-        const older = original !== undefined ? event.messages.slice(0, original) : messages.slice(0, split);
+        const original = config.hybridOriginals ? originalIndex(history, messages, split) : undefined;
+        const older = original !== undefined ? history.slice(0, original) : messages.slice(0, split);
         if (config.hybridOriginals) log($, `hybrid: summarizing ${original !== undefined ? 'the original' : 'the trimmed (no matching prompt)'} older messages`, report);
         const summarized = await summary({ ...event, messages: older });
         if (summarized === partial) return partial;
@@ -1573,7 +1590,7 @@ async function compactHook(
         `skipped (builtin fallback disabled for ${event.trigger ?? 'this'} trigger: ${error instanceof Error ? error.message : String(error)})`,
         report,
       );
-      return { skip: 'fast-jev-compaction: request failed, builtin fallback disabled' };
+      return { skip: 'jev-compaction: request failed, builtin fallback disabled' };
     }
     notify(
       $,
@@ -1596,7 +1613,7 @@ export const register: Register = (on: On, options: PluginOptions) => {
     try {
       await $.command.register({
         name: 'jev',
-        description: 'fast-jev-compaction: the last compaction and the current settings',
+        description: 'jev-compaction: the last compaction and the current settings',
         immediate: true,
       });
     } catch {
@@ -1622,12 +1639,38 @@ export const register: Register = (on: On, options: PluginOptions) => {
     };
   });
 
+  // Records each message the user sends mid-turn, for the next compaction to keep
+  // (see src/midturn.ts). Only reads: the attachment goes on unchanged.
+  const midTurn = new Map<string, MidTurn[]>();
+  const pendingFor = (agentId: string | undefined): MidTurn[] => {
+    const key = agentId ?? 'main';
+    if (!midTurn.has(key)) midTurn.set(key, []);
+    return midTurn.get(key) as MidTurn[];
+  };
+  on('prompt.attachment', { type: 'queued_command' }, async ($, e, next) => {
+    if (e.text.includes(MID_TURN_LEAD)) {
+      try {
+        const tail = await $.session.messages(e.agentId ? { agentId: e.agentId } : {});
+        if (Array.isArray(tail)) recordMidTurn(pendingFor(e.agentId), e.text, tail);
+      } catch {
+        // A record only: a session that cannot be read leaves the message as the engine keeps it.
+      }
+    }
+    return next(e);
+  });
+
   on('session.compact', async ($, event, next) => {
     const current: Report = { lines: [] };
     if (event.trigger === 'precompute') return compactHook($, event, next, configured, once, current);
+    let result: Awaited<ReturnType<typeof compactHook>> | undefined;
     try {
-      return await compactHook($, event, next, configured, once, current);
+      result = await compactHook($, event, next, configured, once, current, pendingFor(event.agentId));
+      return result;
     } finally {
+      // A record serves one compaction that changed the history: a Jev cut saved it in a row and
+      // Claude's summary keeps it its own way. A skipped or failed compaction leaves the engine's
+      // history as it was, without the message, so the record stays for the next one.
+      if (result !== undefined && !('skip' in result)) midTurn.delete(event.agentId ?? 'main');
       if (configured.compactionLog && configured.archiveResults && current.ledger) {
         try {
           const at = await $.clock.now();

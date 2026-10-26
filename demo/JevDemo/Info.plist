@@ -4,7 +4,7 @@
 <dict>
   <key>CFBundleName</key><string>JevDemo</string>
   <key>CFBundleDisplayName</key><string>Jev Compaction Demo</string>
-  <key>CFBundleIdentifier</key><string>ai.typesafe.fast-jev-compaction.demo</string>
+  <key>CFBundleIdentifier</key><string>ai.typesafe.jev-compaction.demo</string>
   <key>CFBundleExecutable</key><string>JevDemo</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>

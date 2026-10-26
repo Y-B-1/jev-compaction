@@ -2,7 +2,7 @@ import { messageChars, reductionRatio, splitsSurrogatePair } from './compact.js'
 import { PROSE_KEEP_LADDER } from './prose.js';
 import { MAX_QUESTIONS_PER_REQUEST, noulAnswer } from './request.js';
 import { ERROR_LINE, capped, redact, salvageErrorLines, salvageIdentifiers } from './salvage.js';
-import { MARKER, collectToolCalls, estimateTokens, fitState, isPinned, resultPreview } from './state.js';
+import { MARKER, collectToolCalls, estimateTokens, fitState, hasMarker, isPinned, resultPreview } from './state.js';
 import type {
   CompactResult,
   JevAsker,
@@ -89,7 +89,7 @@ export type NotificationApplied = {
 
 const OPEN = '<task-notification>';
 const ENVELOPE = /(<usage>[\s\S]*?<\/usage>|<diagnostics>[\s\S]*?<\/diagnostics>)(\r?\n)?/g;
-const ARCHIVE_ID_DIR = '.claude/fast-jev-compaction';
+const ARCHIVE_ID_DIR = '.claude/jev-compaction';
 const OVERHEAD_TOKENS = 20;
 const STATE_PLUS_QUESTION_TOKENS = 32_000;
 /** A body this much longer than the head is worth folding (the same margin tool-result truncation uses). */
@@ -99,7 +99,7 @@ function eligible(message: Message, index: number, total: number, preserve: numb
   if (message.role !== 'user' || isPinned(index, total, preserve)) return undefined;
   if (message.toolUses.length > 0 || (message.toolResults?.length ?? 0) > 0) return undefined;
   const text = message.text;
-  if (!text.trimStart().startsWith(OPEN) || text.includes(MARKER)) return undefined;
+  if (!text.trimStart().startsWith(OPEN) || hasMarker(text)) return undefined;
   if (text.indexOf(OPEN, text.indexOf(OPEN) + 1) !== -1) return undefined;
   const open = text.indexOf('<result>');
   if (open === -1 || /<status>([^<]*)<\/status>/.exec(text.slice(0, open))?.[1]?.trim() !== 'completed') return undefined;
