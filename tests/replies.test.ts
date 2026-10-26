@@ -67,7 +67,7 @@ describe('replyTrim: old replies folded whole on every compaction', () => {
     expect(replyOf(out.messages)).toBeUndefined();
     // The dropped Read call's note row folds into the same marker as the reply beside it.
     const marker = out.messages.find((m) => m.text.includes('archived 2 rows of earlier work'))!;
-    expect(out.messages.filter((m) => m.text.includes('[fast-jev-compaction '))).toHaveLength(1);
+    expect(out.messages.filter((m) => m.text.includes('[jev-compaction '))).toHaveLength(1);
     expect(marker.text).toMatch(/full text: arch\/step-[0-9a-f]{12}\.txt \(Read it if needed\)\]\nNote: Let me take/);
     expect([...a.files.values()].some((t) => t.includes(REPLY))).toBe(true);
     expect([...a.files.values()].some((t) => t.includes(REPLY) && t.includes('removed the Read call'))).toBe(true);
@@ -109,6 +109,6 @@ describe('replyTrim floor', () => {
   it('leaves an old reply alone when folding it frees less than 5% of the context', async () => {
     const out = await compactSession(transcript(), config() as never, fetchWith(0.01), archive());
     expect(replyOf(out.messages)!.text).toContain(REPLY);
-    expect(out.messages.some((m) => m.text.includes('[fast-jev-compaction archived'))).toBe(false);
+    expect(out.messages.some((m) => m.text.includes('[jev-compaction archived'))).toBe(false);
   });
 });

@@ -4,7 +4,7 @@ import { compact, resolveOptions } from '../src/compact.js';
 import { trimRescue } from '../src/trim.js';
 import type { JevAsker, JevQuestions, Message } from '../src/types.js';
 
-const pathOf = (id: string): string => `.claude/fast-jev-compaction/${id}.txt`;
+const pathOf = (id: string): string => `.claude/jev-compaction/${id}.txt`;
 const options = { ...resolveOptions({ preserveRecentMessages: 2 }), goal: 'Fix the stale cache.' };
 
 const BODY =

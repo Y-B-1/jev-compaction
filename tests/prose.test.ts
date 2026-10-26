@@ -69,7 +69,7 @@ describe('splitProse: protected spans', () => {
     ['P8 short flag', 'Please use -rf carefully now.', 'use'],
     ['P9 error line', 'The plain build failed here today.', 'plain'],
     ['P9 quoted', 'Please say "hello there" now.', 'say'],
-    ['marker line', '[fast-jev-compaction elided 5 chars of Write.content for a.ts; Read the file if needed]', 'elided'],
+    ['marker line', '[jev-compaction elided 5 chars of Write.content for a.ts; Read the file if needed]', 'elided'],
   ];
 
   test.each(kept)('%s is kept unscored', (_name, text, needle) => {
@@ -251,7 +251,7 @@ describe('elideBody', () => {
     const text = `${'a'.repeat(300)}${'b'.repeat(12000)}`;
     const out = elideBody(text, label, 300, 0);
     expect(out.startsWith(`${'a'.repeat(300)}\n`)).toBe(true);
-    expect(out).toContain('[fast-jev-compaction elided 12,000 chars of Write.content for src/app.ts; Read the file if needed]');
+    expect(out).toContain('[jev-compaction elided 12,000 chars of Write.content for src/app.ts; Read the file if needed]');
     expect(out.length).toBeLessThan(text.length);
   });
 
@@ -410,7 +410,7 @@ describe('scoreProse + applyProse (Jev trim stage)', () => {
     const input = (i: number) => uses[i]!.input['content'] as string;
     for (const i of [0, 1]) {
       expect(input(i).startsWith(body.slice(0, 300))).toBe(true);
-      expect(input(i)).toContain('[fast-jev-compaction elided');
+      expect(input(i)).toContain('[jev-compaction elided');
       expect(input(i)).toContain('Write.content for src/app.ts');
       expect(input(i).length).toBeLessThan(body.length);
     }
@@ -434,7 +434,7 @@ describe('scoreProse + applyProse (Jev trim stage)', () => {
     const stale = new Map([...full].filter(([, d]) => d.action === 'drop_result'));
     const out = await trimProse(messages, stale, asker(() => 0.9), OPTS);
     expect(out.messages[1]!.toolUses[0]).toBe(messages[1]!.toolUses[0]);
-    expect(out.messages[1]!.toolUses[1]!.input['content']).toContain('[fast-jev-compaction elided');
+    expect(out.messages[1]!.toolUses[1]!.input['content']).toContain('[jev-compaction elided');
   });
 
   test('a prose input of 200 chars is scored, 199 is not', async () => {
@@ -470,7 +470,7 @@ describe('scoreProse + applyProse (Jev trim stage)', () => {
     const cut = out.messages[1]!.toolUses[0]!.input['command'] as string;
     expect(cut.startsWith("cat > src/x.ts <<'EOF'\n")).toBe(true);
     expect(cut.endsWith('\nEOF\necho done')).toBe(true);
-    expect(cut).toContain('[fast-jev-compaction elided');
+    expect(cut).toContain('[jev-compaction elided');
     expect(cut.length).toBeLessThan(command.length);
   });
 

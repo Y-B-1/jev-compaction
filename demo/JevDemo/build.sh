@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds demo/JevDemo/main.swift into demo/JevDemo/build/JevDemo.app and launches it.
-# A native macOS animation of fast-jev-compaction inside a Claude Code-style
+# A native macOS animation of jev-compaction inside a Claude Code-style
 # terminal, meant to be screen recorded. Press space in the app to replay.
 set -euo pipefail
 

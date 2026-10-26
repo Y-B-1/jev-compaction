@@ -167,7 +167,7 @@ function batches(chunks: readonly OutputChunk[], stateTokens: number): OutputChu
 function outputMarker(chunks: readonly OutputChunk[], fullOutputPath: string | undefined): string {
   const lines = chunks.reduce((sum, chunk) => sum + chunk.lines, 0);
   const chars = chunks.reduce((sum, chunk) => sum + chunk.chars, 0) + Math.max(0, chunks.length - 1);
-  return `[fast-jev-compaction trimmed ${lines} lines (${chars} chars)${
+  return `[jev-compaction trimmed ${lines} lines (${chars} chars)${
     fullOutputPath
       ? `; full output: ${fullOutputPath} (Read or grep it if needed)`
       : '; not saved to disk, re-run the command if you need these lines'

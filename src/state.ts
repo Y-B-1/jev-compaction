@@ -308,7 +308,19 @@ const MACHINE_TEXT_PREFIXES = [
 ] as const;
 
 /** The prefix of every marker this plugin leaves in the history. */
-export const MARKER = '[fast-jev-compaction ';
+export const MARKER = '[jev-compaction ';
+/** The prefix markers carried before the plugin was renamed (0.18.0 and earlier); still recognized. */
+export const OLD_MARKER = '[fast-jev-compaction ';
+
+/** Whether `text` holds a marker of this plugin, under its current or its old name. */
+export function hasMarker(text: string): boolean {
+  return text.includes(MARKER) || text.includes(OLD_MARKER);
+}
+
+/** Whether `line` starts with a marker of this plugin, under its current or its old name. */
+export function startsWithMarker(line: string): boolean {
+  return line.startsWith(MARKER) || line.startsWith(OLD_MARKER);
+}
 
 /**
  * `text` without the plugin's own lines: lines that start with a marker and the `Note:` or
@@ -318,7 +330,7 @@ export function ownText(text: string): string {
   const kept: string[] = [];
   let afterMarker = false;
   for (const line of text.split('\n')) {
-    if (line.trimStart().startsWith(MARKER)) afterMarker = true;
+    if (startsWithMarker(line.trimStart())) afterMarker = true;
     else if (!(afterMarker && /^(Note|Last reply): /.test(line))) {
       afterMarker = false;
       kept.push(line);

@@ -29,7 +29,7 @@ import {
   type ProseStats,
 } from '../src/prose.js';
 import { redactCompactionState, redactText } from '../src/redact.js';
-import { MARKER, estimateTokens, goalFromMessages } from '../src/state.js';
+import { estimateTokens, goalFromMessages, hasMarker } from '../src/state.js';
 import { type MediaArchive, findMedia, mediaNote, placeMedia, splitMediaNotes } from '../src/media.js';
 import type { InjectStats } from '../src/inject.js';
 import { failedProseStats, trimRescue } from '../src/trim.js';
@@ -484,7 +484,7 @@ function mergeRun(run: readonly SessionMessage[]): SessionMessage {
 /**
  * Puts the compacted conversation in the shape that survives `--resume` and
  * keeps parallel tool calls paired. Two engine behaviours drive it
- * (anthropics/claude-code#95328, fast-jev-compaction#89 and #137):
+ * (anthropics/claude-code#95328, tamaratran/fast-jev-compaction#89 and #137):
  *
  * - A kept message that still carries its `handle` is re-saved pointing
  *   behind the compaction, and on `--resume` the engine walks back through it
@@ -592,7 +592,9 @@ export type StepsOutcome = { pass?: StepOutcome['pass']; cutoff?: number; stats:
 /** What the exchange drop did: the cut-off it settled on, or none when no cut-off reached the minimum or the stage failed. */
 export type ExchangeOutcome = { cutoff?: number; stats: ExchangeStats };
 
-const ARCHIVE_DIR = '.claude/fast-jev-compaction';
+const ARCHIVE_DIR = '.claude/jev-compaction';
+/** Where archives went before the plugin was renamed (0.18.0 and earlier); old markers still cite it. */
+const OLD_ARCHIVE_DIR = '.claude/fast-jev-compaction';
 
 export type ArchiveWriter = {
   /** Names the file a dropped call's or result's full text will be written to. */
@@ -628,7 +630,7 @@ export async function archiveDir($: {
 }
 
 /**
- * Saves what compaction drops to `dir` (default `.claude/fast-jev-compaction/`), so a detail
+ * Saves what compaction drops to `dir` (default `.claude/jev-compaction/`), so a detail
  * buried in a dropped call or result can still be read back later. The text is
  * written with the same redaction the Jev request applies, so a credential in
  * it is replaced by `[REDACTED]` rather than stored, and the rest is kept.
@@ -704,8 +706,8 @@ export function archiveFilesNamed(input: Record<string, unknown>): string[] {
   const text = ['file_path', 'path', 'command', 'pattern']
     .map((key) => (typeof input[key] === 'string' ? (input[key] as string) : ''))
     .join(' ');
-  if (!text.includes(ARCHIVE_DIR)) return [];
-  const files = [...text.matchAll(/fast-jev-compaction\/([A-Za-z0-9_.-]+\.txt)/g)].map((m) => m[1]!);
+  if (!text.includes(ARCHIVE_DIR) && !text.includes(OLD_ARCHIVE_DIR)) return [];
+  const files = [...text.matchAll(/\.claude\/(?:fast-)?jev-compaction\/([A-Za-z0-9_.-]+\.txt)/g)].map((m) => m[1]!);
   return files.length > 0 ? [...new Set(files)] : ['*'];
 }
 
@@ -750,7 +752,7 @@ async function writeIndex(
       index = '';
     }
     if (index.length > INDEX_MAX_CHARS) return;
-    if (!index) index = '# fast-jev-compaction archive\n\nOne line per archived item: its file, then how it starts.\n\n';
+    if (!index) index = '# jev-compaction archive\n\nOne line per archived item: its file, then how it starts.\n\n';
     const lines: string[] = [];
     for (const [file, text] of files) {
       const name = file.slice(file.lastIndexOf('/') + 1);
@@ -1302,12 +1304,12 @@ export function formatBreakdown(b: ContextBreakdown): string {
 
 function interrupted($: UiLog, report?: Report): { skip: string } {
   log($, 'compaction interrupted; nothing changed', report);
-  return { skip: 'fast-jev-compaction: interrupted' };
+  return { skip: 'jev-compaction: interrupted' };
 }
 
 /** An error's message for a toast: its first line, at most 100 characters. */
 function shortError(error: unknown): string {
-  const text = (error instanceof Error ? error.message : String(error)).split('\n')[0]!.replace(/^fast-jev-compaction: /, '');
+  const text = (error instanceof Error ? error.message : String(error)).split('\n')[0]!.replace(/^(?:fast-)?jev-compaction: /, '');
   return text.length > 100 ? `${text.slice(0, 99)}…` : text;
 }
 
@@ -1349,7 +1351,7 @@ async function compactHook(
   // `precompute` computes nothing yet and installs no result, so there is
   // nothing useful for Jev to do here.
   if (event.trigger === 'precompute') {
-    return { skip: 'fast-jev-compaction does not handle speculative compactions' };
+    return { skip: 'jev-compaction does not handle speculative compactions' };
   }
   try {
     const config = { ...configured, apiKey: await getApiKey($, configured) };
@@ -1401,7 +1403,7 @@ async function compactHook(
           `skipped (${reason}, builtin fallback disabled for ${event.trigger ?? 'this'} trigger)`,
           report,
         );
-        return { skip: 'fast-jev-compaction: below minimum reduction, builtin fallback disabled' };
+        return { skip: 'jev-compaction: below minimum reduction, builtin fallback disabled' };
       }
       notify(
         $,
@@ -1451,7 +1453,7 @@ async function compactHook(
       historyInContext,
       reduction: Math.round(reductionRatio(result) * 1000) / 1000,
       // Plugin marker rows left in the history, and what each stage that ran settled on.
-      markersAfter: messages.filter((m) => m.text.includes(MARKER)).length,
+      markersAfter: messages.filter((m) => hasMarker(m.text)).length,
       stages: {
         tool: Math.round(reductionRatio(result) * 1000) / 1000,
         ...(prose ? { prose: prose.cutoff ?? null } : {}),
@@ -1505,7 +1507,7 @@ async function compactHook(
           `skipped (below ${percent(configured.minReductionRatio)} minimum${tried}, builtin fallback disabled for ${event.trigger ?? 'this'} trigger: ${summarize(result)})`,
           report,
         );
-        return { skip: 'fast-jev-compaction: below minimum reduction, builtin fallback disabled' };
+        return { skip: 'jev-compaction: below minimum reduction, builtin fallback disabled' };
       }
       const summary = async (e: typeof event): ReturnType<typeof next> => {
         try {
@@ -1573,7 +1575,7 @@ async function compactHook(
         `skipped (builtin fallback disabled for ${event.trigger ?? 'this'} trigger: ${error instanceof Error ? error.message : String(error)})`,
         report,
       );
-      return { skip: 'fast-jev-compaction: request failed, builtin fallback disabled' };
+      return { skip: 'jev-compaction: request failed, builtin fallback disabled' };
     }
     notify(
       $,
@@ -1596,7 +1598,7 @@ export const register: Register = (on: On, options: PluginOptions) => {
     try {
       await $.command.register({
         name: 'jev',
-        description: 'fast-jev-compaction: the last compaction and the current settings',
+        description: 'jev-compaction: the last compaction and the current settings',
         immediate: true,
       });
     } catch {

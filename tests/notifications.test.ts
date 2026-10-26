@@ -10,7 +10,7 @@ import {
 } from '../src/notifications.js';
 import type { CompactResult, JevAsker, JevQuestions, Message } from '../src/types.js';
 
-const MARKER = '[fast-jev-compaction ';
+const MARKER = '[jev-compaction ';
 const options = { ...resolveOptions({ preserveRecentMessages: 2 }), goal: 'Fix the stale cache.' };
 
 type Parts = {
@@ -70,7 +70,7 @@ function fakeAsker(answer: (key: string) => number | undefined, calls: Call[] = 
   };
 }
 
-const archiveAt = (id: string): string => `.claude/fast-jev-compaction/${id}.txt`;
+const archiveAt = (id: string): string => `.claude/jev-compaction/${id}.txt`;
 const cite = (id: string): string => archiveAt(id);
 
 /** `noul` null means Jev gives no answer. */
@@ -101,7 +101,7 @@ describe('strip (plan item 1)', () => {
     }
     expect(text.split(MARKER)).toHaveLength(2);
     expect(text).toContain(
-      `[fast-jev-compaction removed usage and diagnostics; full notification: ${archiveAt('notif-a1b2c3')} (Read or grep it if needed)]`,
+      `[jev-compaction removed usage and diagnostics; full notification: ${archiveAt('notif-a1b2c3')} (Read or grep it if needed)]`,
     );
     expect(out.stats).toMatchObject({ stripped: 1, folded: 0 });
   });
@@ -119,7 +119,7 @@ describe('fold (plan item 2)', () => {
     const original = notification();
     const { out } = await applied([original], 0.15, 0.1);
     const text = out.messages[2]!.text;
-    const marker = `[fast-jev-compaction folded ${BODY.length - options.truncateHeadChars} chars of this task result and removed its usage and diagnostics; full notification: ${archiveAt('notif-a1b2c3')} (Read or grep it if needed)]`;
+    const marker = `[jev-compaction folded ${BODY.length - options.truncateHeadChars} chars of this task result and removed its usage and diagnostics; full notification: ${archiveAt('notif-a1b2c3')} (Read or grep it if needed)]`;
     const lines = text.split('\n');
     expect(lines).toContain(marker);
     expect(text).toContain(`<result>${BODY.slice(0, options.truncateHeadChars)}\n${marker}\n`);

@@ -1,10 +1,10 @@
-# fast-jev-compaction Claude Code mod
+# Jev compaction plugin: the Claude Code mod
 
 This plugin uses Claude Code function hooks to replace a compaction with the
 original messages, minus the tool calls and tool results Jev judged no longer
 needed. `hooks/fast-jev.ts` is a thin adapter: it reads the plugin options,
 finds the TypeSafe key, hands `session.compact` transcripts to the
-`fast-jev-compaction` library in `src/` (the plugin folder is the repository
+`jev-compaction` library in `src/` (the plugin folder is the repository
 root, so the hook imports it directly) and maps the result back onto session
 messages. Your prompts are never touched; when trimming tool calls is not
 enough, later stages archive whole old assistant steps to files, leaving one
@@ -33,8 +33,8 @@ hooks surface before installing or loading it:
 export CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1
 export TYPESAFE_API_KEY="<your TypeSafe key>"
 
-claude plugin marketplace add Y-B-1/fast-jev-compaction-plus
-claude plugin install fast-jev-compaction@fast-jev-compaction
+claude plugin marketplace add Y-B-1/jev-compaction
+claude plugin install jev-compaction@jev-compaction
 ```
 
 For local development:

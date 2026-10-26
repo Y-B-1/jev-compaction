@@ -1,12 +1,12 @@
 {
-  "name": "fast-jev-compaction",
+  "name": "jev-compaction",
   "owner": {
     "name": "Y-B-1",
     "url": "https://github.com/Y-B-1"
   },
   "plugins": [
     {
-      "name": "fast-jev-compaction",
+      "name": "jev-compaction",
       "source": "./",
       "description": "Verbatim Jev-guided compaction for Claude Code sessions.",
       "version": "0.18.0",

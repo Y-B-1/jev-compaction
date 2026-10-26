@@ -42,7 +42,7 @@ function asker(answer: (key: string) => number | undefined, calls: string[][] = 
     },
   };
 }
-const cite = (id: string) => `.claude/fast-jev-compaction/${id}.txt`;
+const cite = (id: string) => `.claude/jev-compaction/${id}.txt`;
 /** A pin count that reaches back to the first older row of `session(row)`. */
 const messagesAfter = (_row: Message) => session(_row).length - 1;
 
@@ -100,7 +100,7 @@ describe('injected-content fold', () => {
     const applied = applyInjected(scores, 0.35, (id, text) => (archived.push([id, text]), cite(id)));
     const out = applied.messages[1]!.text;
     expect(out.startsWith('Base directory for this skill: /x/skills/demo\n\nStep: do the thing')).toBe(true);
-    expect(out).toContain('[fast-jev-compaction folded ');
+    expect(out).toContain('[jev-compaction folded ');
     expect(out).toContain(`full text: ${cite(applied.archived[0]!.id)}`);
     expect(out.endsWith('\nARGUMENTS: make the bar thinner')).toBe(true);
     expect(out.length).toBeLessThan(original.length / 4);

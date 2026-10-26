@@ -107,7 +107,7 @@ describe('applyExchanges', () => {
       messages.filter((m) => m.role === 'user' && m.text.length > 0).map((m) => m.text),
     );
     const marker = out.messages[3]!;
-    expect(marker.text).toMatch(/^\[fast-jev-compaction archived this exchange: 3 rows, 1 tool calls \(Read\), \d+ chars; full text: arch\/exchange-[0-9a-f]{12}\.txt/);
+    expect(marker.text).toMatch(/^\[jev-compaction archived this exchange: 3 rows, 1 tool calls \(Read\), \d+ chars; full text: arch\/exchange-[0-9a-f]{12}\.txt/);
     expect(marker.text).toContain('Last reply: The logging module writes to stderr');
     expect(out.messages[5]!.text).toContain('2 tool calls (Grep, Read)');
     const ids = (ms: Message[]) => ms.flatMap((m) => [...m.toolUses.map((u) => u.tool_use_id), ...(m.toolResults ?? []).map((r) => r.tool_use_id)]);
@@ -156,7 +156,7 @@ describe('exchange drop through compactSession', () => {
     const out = await compactSession(sessionRows(), cfg() as any, fetchWith(0.01), a);
     expect(out.exchanges?.cutoff).toBe(0.05);
     expect(out.exchanges?.stats.dropped).toBe(2);
-    expect(out.messages.some((m) => m.text.startsWith('[fast-jev-compaction archived this exchange'))).toBe(true);
+    expect(out.messages.some((m) => m.text.startsWith('[jev-compaction archived this exchange'))).toBe(true);
     expect(out.messages.map((m) => m.text)).toContain('check the old cache layer');
     expect([...a.files.values()].filter((t) => t.startsWith('request (entry'))).toHaveLength(2);
   });

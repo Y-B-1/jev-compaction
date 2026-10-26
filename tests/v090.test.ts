@@ -164,7 +164,7 @@ describe('inputTrim', () => {
 
   it('cuts old code bodies even when tool compaction alone reaches the minimum', async () => {
     const out = await compactSession(session(), config(), jevFetch(() => 0.01));
-    expect(content(out.messages, 'w1')).toContain('[fast-jev-compaction elided ');
+    expect(content(out.messages, 'w1')).toContain('[jev-compaction elided ');
     expect(content(out.messages, 'w1').length).toBeLessThan(600);
     expect(content(out.messages, 'w2')).toBe(body);
     expect(out.result.stats.inputsElided).toBe(1);

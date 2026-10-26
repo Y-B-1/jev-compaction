@@ -163,11 +163,11 @@ describe('session message mapping', () => {
     expect(out[0]).toBe(messages[0]);
     expect(out[1]?.handle).toBeUndefined();
     expect(out[1]?.toolUses[0]?.text).toMatch(
-      new RegExp(`^${'x'.repeat(300)}\\n\\[fast-jev-compaction truncated 1700 chars`),
+      new RegExp(`^${'x'.repeat(300)}\\n\\[jev-compaction truncated 1700 chars`),
     );
     expect(out[2]?.handle).toBeUndefined();
     expect(out[2]?.toolResults?.[0]?.text).toMatch(
-      new RegExp(`^${'x'.repeat(300)}\\n\\[fast-jev-compaction truncated 1700 chars`),
+      new RegExp(`^${'x'.repeat(300)}\\n\\[jev-compaction truncated 1700 chars`),
     );
     expect(out[2]?.toolResults?.[0]).toMatchObject({ tool_use_id: 'tool-1', isError: false });
     expect(out[3]).toBe(messages[3]);
@@ -355,9 +355,9 @@ describe('compactSession', () => {
     });
     const { result } = await compactSession(transcript(), config, jevFetch(() => 0.01), writer);
     const dropped = result.messages.find((m) => m.text.includes('removed the Read call'));
-    expect(dropped?.text).toContain('.claude/fast-jev-compaction/tool-1.txt');
-    expect(files.get('.claude/fast-jev-compaction/tool-1.txt')).toBe(fileA);
-    expect(files.get('.claude/fast-jev-compaction/.gitignore')).toBe('*\n');
+    expect(dropped?.text).toContain('.claude/jev-compaction/tool-1.txt');
+    expect(files.get('.claude/jev-compaction/tool-1.txt')).toBe(fileA);
+    expect(files.get('.claude/jev-compaction/.gitignore')).toBe('*\n');
   });
 });
 
@@ -377,10 +377,10 @@ describe('archiveWriter', () => {
     const stub = fsStub();
     const writer = archiveWriter(stub);
     const path = writer.cite('toolu_1', 'a'.repeat(5000));
-    expect(path).toBe('.claude/fast-jev-compaction/toolu_1.txt');
+    expect(path).toBe('.claude/jev-compaction/toolu_1.txt');
     expect(stub.files.size).toBe(0);
     await writer.flush();
-    expect(stub.files.get('.claude/fast-jev-compaction/.gitignore')).toBe('*\n');
+    expect(stub.files.get('.claude/jev-compaction/.gitignore')).toBe('*\n');
     expect(stub.files.get(path!)?.length).toBe(5000);
   });
 
@@ -411,12 +411,12 @@ describe('archiveWriter', () => {
 
   it('names and writes files under the directory it is given', async () => {
     const stub = fsStub();
-    const writer = archiveWriter(stub, '/repo/.claude/fast-jev-compaction');
+    const writer = archiveWriter(stub, '/repo/.claude/jev-compaction');
     const path = writer.cite('toolu_4', 'text');
-    expect(path).toBe('/repo/.claude/fast-jev-compaction/toolu_4.txt');
+    expect(path).toBe('/repo/.claude/jev-compaction/toolu_4.txt');
     expect(writer.pathOf('toolu_4')).toBe(path);
     await writer.flush();
-    expect(stub.files.get('/repo/.claude/fast-jev-compaction/.gitignore')).toBe('*\n');
+    expect(stub.files.get('/repo/.claude/jev-compaction/.gitignore')).toBe('*\n');
     expect(stub.files.get(path!)).toBe('text');
   });
 
@@ -447,17 +447,17 @@ describe('archiveDir', () => {
 
   it('anchors the archive at the git toplevel of the session directory, not the directory itself', async () => {
     const e = engine({ exitCode: 0, stdout: '/repo\n' });
-    expect(await archiveDir(e.$)).toBe('/repo/.claude/fast-jev-compaction');
+    expect(await archiveDir(e.$)).toBe('/repo/.claude/jev-compaction');
     expect(e.runs).toEqual([{ argv: ['git', 'rev-parse', '--show-toplevel'], cwd: '/repo/plugins/sub' }]);
   });
 
   it('falls back to the session root outside a git repository', async () => {
-    expect(await archiveDir(engine({ exitCode: 128, stdout: '' }).$)).toBe('/started/.claude/fast-jev-compaction');
+    expect(await archiveDir(engine({ exitCode: 128, stdout: '' }).$)).toBe('/started/.claude/jev-compaction');
   });
 
   it('falls back to the relative directory when the engine cannot answer', async () => {
-    expect(await archiveDir(engine(new Error('no git')).$)).toBe('.claude/fast-jev-compaction');
-    expect(await archiveDir({} as never)).toBe('.claude/fast-jev-compaction');
+    expect(await archiveDir(engine(new Error('no git')).$)).toBe('.claude/jev-compaction');
+    expect(await archiveDir({} as never)).toBe('.claude/jev-compaction');
   });
 });
 
@@ -581,7 +581,7 @@ describe('register', () => {
       { trigger: 'manual', messages: transcript() },
       next(controller.signal),
     );
-    expect(out).toEqual({ skip: 'fast-jev-compaction: interrupted' });
+    expect(out).toEqual({ skip: 'jev-compaction: interrupted' });
     expect(e.toasts).toEqual([]);
   });
 
@@ -615,7 +615,7 @@ describe('register', () => {
       next(),
     );
     expect(out).toEqual({
-      skip: 'fast-jev-compaction does not handle speculative compactions',
+      skip: 'jev-compaction does not handle speculative compactions',
     });
   });
 
@@ -641,7 +641,7 @@ describe('register', () => {
       { trigger: 'manual', messages: transcript() },
       next(),
     );
-    expect(out).toEqual({ skip: 'fast-jev-compaction: request failed, builtin fallback disabled' });
+    expect(out).toEqual({ skip: 'jev-compaction: request failed, builtin fallback disabled' });
     expect(e.toasts).toHaveLength(1);
     expect(e.notices[0]).toMatch(/builtin fallback disabled/);
   });
@@ -657,7 +657,7 @@ describe('register', () => {
       next(),
     );
     expect(out).toEqual({
-      skip: 'fast-jev-compaction: below minimum reduction, builtin fallback disabled',
+      skip: 'jev-compaction: below minimum reduction, builtin fallback disabled',
     });
     expect(clock.calls).toBeGreaterThan(before);
   });
@@ -689,7 +689,7 @@ describe('register', () => {
       { trigger: 'auto', messages: transcript() },
       next(),
     );
-    expect(out).toEqual({ skip: 'fast-jev-compaction: request failed, builtin fallback disabled' });
+    expect(out).toEqual({ skip: 'jev-compaction: request failed, builtin fallback disabled' });
   });
 
   it('passes /compact instructions through as extra goal context', async () => {
@@ -775,7 +775,7 @@ describe('register: tool.call (Bash output trimming)', () => {
       next(async () => ({ result: { stdout: long } })),
     )) as { result: { stdout: string } };
     expect(out.result.stdout.length).toBeLessThan(long.length);
-    expect(out.result.stdout).toContain('fast-jev-compaction trimmed');
+    expect(out.result.stdout).toContain('jev-compaction trimmed');
     expect(clock.calls).toBeGreaterThan(before);
   });
 
@@ -1100,7 +1100,7 @@ describe('proseTrim rescue', () => {
         const path = /full output: (\S+?)\]/.exec(cut)?.[1];
         expect(path).toBeDefined();
         expect(files.get(path!)).toBe(body);
-        expect(files.get('.claude/fast-jev-compaction/.gitignore')).toBe('*\n');
+        expect(files.get('.claude/jev-compaction/.gitignore')).toBe('*\n');
       });
 
       it('writes nothing and keeps the old marker when archiveResults is off', async () => {
@@ -1116,7 +1116,7 @@ describe('proseTrim rescue', () => {
       expect(await on.run(event)).toBe(event);
       expect(on.notices[0]).toMatch(/^fallback to built-in summary \(below 25% minimum, prose trim tried: /);
       const never = hook({ proseTrim: true, builtinFallback: 'never' }, fetchWith(0.9));
-      expect(await never.run(event)).toEqual({ skip: 'fast-jev-compaction: below minimum reduction, builtin fallback disabled' });
+      expect(await never.run(event)).toEqual({ skip: 'jev-compaction: below minimum reduction, builtin fallback disabled' });
       expect(never.notices[0]).toContain('minimum, prose trim tried, builtin fallback disabled');
     });
 
@@ -1264,7 +1264,7 @@ describe('notificationTrim rescue', () => {
     expect(out.notifications?.rung).toBe(0.15);
     expect(out.notifications?.stats).toMatchObject({ folded: 3, stripped: 0, requests: 1 });
     expect(reductionRatioOf(out)).toBeGreaterThanOrEqual(0.25);
-    expect(textOf(out)).toContain('[fast-jev-compaction folded');
+    expect(textOf(out)).toContain('[jev-compaction folded');
     expect(textOf(out)).not.toContain('<usage>');
     expect(summarize(out.result, out.prose, out.notifications)).toMatch(
       /; notification trim at 0\.15: 3 folded, 0 stripped, \d+ chars$/,
@@ -1404,7 +1404,7 @@ describe('notificationTrim rescue', () => {
     expect(both.notifications?.rung).toBe(0.15);
     expect(both.messages).toHaveLength(proseOnly.messages.length);
     expect(both.messages.some((m) => m.text.startsWith(FLUFF))).toBe(false);
-    expect(both.messages.filter((m) => m.text.includes('[fast-jev-compaction folded'))).toHaveLength(3);
+    expect(both.messages.filter((m) => m.text.includes('[jev-compaction folded'))).toHaveLength(3);
     expect(both.messages.filter((m) => m.text.startsWith('<task-notification>'))).toHaveLength(3);
     expect(both.messages.map((m) => m.role)).toEqual(proseOnly.messages.map((m) => m.role));
   });

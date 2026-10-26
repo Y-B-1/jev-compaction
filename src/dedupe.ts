@@ -15,14 +15,14 @@ export const MIN_BLOCK_CHARS = 200;
 export const MIN_REPEATED_MESSAGE_CHARS = 500;
 
 /** Marks text an earlier compaction already cut, so it is never cut or archived again. */
-export const COMPACTED_MARKER = '[fast-jev-compaction truncated ';
+export const COMPACTED_MARKER = '[jev-compaction truncated ';
 
 function blockMarker(tag: string, chars: number): string {
-  return `[fast-jev-compaction removed a repeated <${tag}> block (${chars} chars); a later copy is kept]`;
+  return `[jev-compaction removed a repeated <${tag}> block (${chars} chars); a later copy is kept]`;
 }
 
 function messageMarker(chars: number): string {
-  return `[fast-jev-compaction removed a repeated message (${chars} chars); a later copy is kept]`;
+  return `[jev-compaction removed a repeated message (${chars} chars); a later copy is kept]`;
 }
 
 /**
