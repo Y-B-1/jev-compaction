@@ -1,6 +1,6 @@
 {
   "name": "jev-compaction",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "description": "Continuous, verbatim context compaction for LLM agents using TypeSafe's Jev model.",
   "type": "module",
   "license": "MIT",

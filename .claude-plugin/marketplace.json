@@ -9,10 +9,10 @@
       "name": "jev-compaction",
       "source": "./",
       "description": "Verbatim Jev-guided compaction for Claude Code sessions.",
-      "version": "0.18.0",
+      "version": "0.19.0",
       "license": "MIT"
     }
   ],
   "description": "Replace Claude Code compaction summaries with verbatim Jev-scored history pruning, routed through TypeSafe.",
-  "version": "0.18.0"
+  "version": "0.19.0"
 }
