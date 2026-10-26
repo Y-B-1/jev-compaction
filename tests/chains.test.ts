@@ -24,13 +24,13 @@ describe('foldNoteChains', () => {
       'first task',
       'second task',
       'third task',
-      expect.stringMatching(/^\[jev-compaction archived the work after/),
+      expect.stringMatching(/^\[jev-compaction folded 3 notes/),
       'now',
       'working',
     ]);
     const folded = out.messages[5]!;
     expect(folded.role).toBe('assistant');
-    expect(folded.text).toMatch(/^\[jev-compaction archived the work after the 3 prompts above; their notes, each naming its file: \/w\/\.claude\/jev-compaction\/notes-[0-9a-f]{12}\.txt \(Read it if needed\)\]$/);
+    expect(folded.text).toMatch(/^\[jev-compaction folded 3 notes on the prompts above into one file, each naming its file: \/w\/\.claude\/jev-compaction\/notes-[0-9a-f]{12}\.txt \(Read it if needed\)\]$/);
     const [file] = [...c.files.values()];
     for (const n of [1, 2, 3]) expect(file).toContain(`step-${n}.txt`);
     expect(file).toContain('after: second task');

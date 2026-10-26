@@ -94,6 +94,7 @@ describe('the hook keeps a mid-turn message through a Jev compaction', () => {
       clock: { sleep: () => new Promise(() => {}), now: async () => Date.UTC(2026, 9, 26) },
       http: {
         fetch: async (_url: string, init: { body: string }) => {
+          if (jevDown) throw new Error('Jev is down');
           const { questions } = JSON.parse(init.body) as { questions: Record<string, unknown> };
           const answers = Object.fromEntries(Object.keys(questions).map((k) => [k, { type: 'noul', noul: k.startsWith('result_') ? 0.01 : 0.9 }]));
           return { status: 200, ok: true, text: JSON.stringify({ answers }) };
@@ -119,11 +120,16 @@ describe('the hook keeps a mid-turn message through a Jev compaction', () => {
       },
       process: { run: async () => ({ exitCode: 1, stdout: '' }) },
     };
+    let jevDown = false;
     const next = Object.assign(async (e: unknown) => e, { signal: new AbortController().signal, budget: { ms: 1e4, remainingMs: 1e4 } });
     const onAttachment = hooks.find((h) => h.event === 'prompt.attachment' && h.matcher?.type === 'queued_command')!.hook;
     const event = { type: 'queued_command', text: attachment('the code word is HERON-7342'), origin: { kind: 'engine' } };
     expect(await onAttachment($, event, next)).toBe(event);
     const compact = hooks.find((h) => h.event === 'session.compact')!.hook;
+    // A compaction Jev cannot serve is skipped and leaves the history as it was: the record stays.
+    jevDown = true;
+    expect(await compact($, { trigger: 'manual', messages: history }, next)).toHaveProperty('skip');
+    jevDown = false;
     const out = await compact($, { trigger: 'manual', messages: history }, next);
     const holder = (out.messages as SessionMessage[]).find((m) => m.text.includes('HERON-7342'));
     expect(holder?.toolResults?.[0]?.tool_use_id).toBe('t3');

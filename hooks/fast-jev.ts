@@ -1662,12 +1662,15 @@ export const register: Register = (on: On, options: PluginOptions) => {
   on('session.compact', async ($, event, next) => {
     const current: Report = { lines: [] };
     if (event.trigger === 'precompute') return compactHook($, event, next, configured, once, current);
+    let result: Awaited<ReturnType<typeof compactHook>> | undefined;
     try {
-      return await compactHook($, event, next, configured, once, current, pendingFor(event.agentId));
+      result = await compactHook($, event, next, configured, once, current, pendingFor(event.agentId));
+      return result;
     } finally {
-      // A record serves one compaction: a Jev cut saved it in a row, Claude's summary keeps
-      // it its own way, and a skipped compaction leaves the engine's history as it was.
-      midTurn.delete(event.agentId ?? 'main');
+      // A record serves one compaction that changed the history: a Jev cut saved it in a row and
+      // Claude's summary keeps it its own way. A skipped or failed compaction leaves the engine's
+      // history as it was, without the message, so the record stays for the next one.
+      if (result !== undefined && !('skip' in result)) midTurn.delete(event.agentId ?? 'main');
       if (configured.compactionLog && configured.archiveResults && current.ledger) {
         try {
           const at = await $.clock.now();

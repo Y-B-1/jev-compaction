@@ -66,7 +66,7 @@ export function foldNoteChains<M extends Message>(
     for (let r = i; r < last; r++) if (!notes.includes(r)) out.push(messages[r] as M);
     out.push({
       role: 'assistant',
-      text: `${MARKER}archived the work after the ${notes.length} prompts above; their notes, each naming its file: ${path} (Read it if needed)]`,
+      text: `${MARKER}folded ${notes.length} notes on the prompts above into one file, each naming its file: ${path} (Read it if needed)]`,
       toolUses: [],
     } as unknown as M);
     folded += notes.length;
