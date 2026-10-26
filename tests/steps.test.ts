@@ -126,7 +126,10 @@ describe('step trim through compactSession', () => {
     expect(prompts(out.messages)).toEqual(prompts(session()));
     const left = ids(out.messages);
     expect(left.filter((id) => left.indexOf(id) !== left.lastIndexOf(id)).length).toBe(left.length);
-    const cited = [...out.messages.map((m) => m.text).join('\n').matchAll(/full text: (arch\/step-[0-9a-f]{12}\.txt)/g)].map((m) => m[1]);
+    // A chain of step notes is folded into one note whose file holds them (src/chains.ts); follow it.
+    const shown = out.messages.map((m) => m.text).join('\n');
+    const folded = [...shown.matchAll(/each naming its file: (arch\/notes-[0-9a-f]{12}\.txt)/g)].map((m) => a.files.get(m[1]!) ?? '');
+    const cited = [...[shown, ...folded].join('\n').matchAll(/full text: (arch\/step-[0-9a-f]{12}\.txt)/g)].map((m) => m[1]);
     expect(cited.length).toBeGreaterThan(0);
     for (const path of cited) expect(a.files.has(path!)).toBe(true);
     expect(summarize(out.result, out.prose, out.notifications, out.injected, out.exchanges, out.steps)).toMatch(/; step trim \(lowest-scored first\): \d+ archived, \d+ chars$/);

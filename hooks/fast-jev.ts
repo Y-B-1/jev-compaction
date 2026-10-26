@@ -32,6 +32,7 @@ import { redactCompactionState, redactText } from '../src/redact.js';
 import { estimateTokens, goalFromMessages, hasMarker } from '../src/state.js';
 import { type MediaArchive, findMedia, mediaNote, placeMedia, splitMediaNotes } from '../src/media.js';
 import { MID_TURN_LEAD, type MidTurn, recordMidTurn, restoreMidTurn } from '../src/midturn.js';
+import { foldNoteChains } from '../src/chains.js';
 import type { InjectStats } from '../src/inject.js';
 import { failedProseStats, trimRescue } from '../src/trim.js';
 import type {
@@ -801,10 +802,18 @@ export async function compactSession(
   const trimNotifications =
     (config.notificationTrim ?? HOOK_DEFAULTS.notificationTrim) && archive !== undefined;
   const trimInjected = (config.injectTrim ?? HOOK_DEFAULTS.injectTrim) && archive !== undefined;
-  const finish = (out: SessionCompaction): SessionCompaction =>
-    (config.stripHandles ?? HOOK_DEFAULTS.stripHandles)
-      ? { ...out, messages: resumeSafeMessages(out.messages) }
-      : out;
+  // Last: fold chains of note-only rows between prompts into one note (see src/chains.ts).
+  const finish = async (out: SessionCompaction): Promise<SessionCompaction> => {
+    let messages = out.messages;
+    if (archive) {
+      const chains = foldNoteChains(messages, resolveOptions(config).preserveRecentMessages, archive.cite);
+      if (chains.folded > 0) {
+        messages = chains.messages;
+        await archive.flush();
+      }
+    }
+    return (config.stripHandles ?? HOOK_DEFAULTS.stripHandles) ? { ...out, messages: resumeSafeMessages(messages) } : { ...out, messages };
+  };
   const dropping = (config.exchangeDrop ?? HOOK_DEFAULTS.exchangeDrop) && archive !== undefined;
   const stepping = (config.stepTrim ?? HOOK_DEFAULTS.stepTrim) && archive !== undefined;
   if (reductionRatio(result) >= config.minReductionRatio) {
