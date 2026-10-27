@@ -33,6 +33,7 @@ import { estimateTokens, goalFromMessages, hasMarker } from '../src/state.js';
 import { type MediaArchive, findMedia, mediaNote, placeMedia, splitMediaNotes } from '../src/media.js';
 import { MID_TURN_LEAD, type MidTurn, recordMidTurn, restoreMidTurn } from '../src/midturn.js';
 import { foldNoteChains } from '../src/chains.js';
+import { foldStepNotes } from '../src/stepnotes.js';
 import type { InjectStats } from '../src/inject.js';
 import { failedProseStats, trimRescue } from '../src/trim.js';
 import type {
@@ -802,12 +803,15 @@ export async function compactSession(
   const trimNotifications =
     (config.notificationTrim ?? HOOK_DEFAULTS.notificationTrim) && archive !== undefined;
   const trimInjected = (config.injectTrim ?? HOOK_DEFAULTS.injectTrim) && archive !== undefined;
-  // Last: fold chains of note-only rows between prompts into one note (see src/chains.ts).
+  // Last: fold each prompt's step notes, then chains of note-only rows between prompts.
   const finish = async (out: SessionCompaction): Promise<SessionCompaction> => {
     let messages = out.messages;
     if (archive) {
-      const chains = foldNoteChains(messages, resolveOptions(config).preserveRecentMessages, archive.cite);
-      if (chains.folded > 0) {
+      // One note per prompt's step notes first (src/stepnotes.ts), then chains of notes across prompts.
+      const preserve = resolveOptions(config).preserveRecentMessages;
+      const steps = foldStepNotes(messages, preserve, archive.cite);
+      const chains = foldNoteChains(steps.messages, preserve, archive.cite);
+      if (steps.folded + chains.folded > 0) {
         messages = chains.messages;
         await archive.flush();
       }
