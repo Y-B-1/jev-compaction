@@ -94,6 +94,24 @@ describe('foldStepNotes', () => {
     expect(out.messages.some((x) => x.text.includes('fast-jev-compaction archived'))).toBe(false);
   });
 
+  it('takes a step note out of a tool-call row an earlier compaction merged it into, keeping the call', () => {
+    const merged = (n: number, id: string): Message => ({ ...call(id), text: step(n) });
+    const messages = [user('task'), merged(1, 'a'), result('a'), reply('a'), merged(2, 'b'), result('b'), user('next'), reply('z')];
+    const out = foldStepNotes(messages, 1, cite().cite);
+    expect(out.folded).toBe(2);
+    expect(out.messages.map((m) => [m.role, m.text.slice(0, 20), m.toolUses.map((u) => u.tool_use_id)])).toEqual([
+      ['user', 'task', []],
+      ['assistant', expect.stringMatching(/^\[jev-compaction arch/), []],
+      ['assistant', '', ['a']],
+      ['user', '', []],
+      ['assistant', 'a', []],
+      ['assistant', '', ['b']],
+      ['user', '', []],
+      ['user', 'next', []],
+      ['assistant', 'z', []],
+    ]);
+  });
+
   it('changes nothing when the archive gives no path', () => {
     const messages = [user('task'), note(1), reply('a'), note(2), user('next'), reply('z')];
     expect(foldStepNotes(messages, 1, () => undefined).messages).toBe(messages);

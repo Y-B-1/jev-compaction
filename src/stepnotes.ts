@@ -66,7 +66,8 @@ export function foldStepNotes<M extends Message>(
     while (end < total && !isPromptRow(messages[end] as M)) end += 1;
     const rows = messages.slice(start, end);
     const parts = rows.map((m, k) =>
-      m.role === 'assistant' && m.toolUses.length === 0 && !isPinned(start + k, total, preserveRecentMessages)
+      // A tool-call row counts too: an earlier compaction may have merged a note into it (resumeSafeMessages).
+      m.role === 'assistant' && !isPinned(start + k, total, preserveRecentMessages)
         ? split(m.text)
         : { members: [] as Member[], rest: m.text },
     );
@@ -101,7 +102,7 @@ export function foldStepNotes<M extends Message>(
         out.push(note);
         placed = true;
       }
-      if (part.rest.length > 0) {
+      if (part.rest.length > 0 || m.toolUses.length > 0) {
         const copy = { ...m, text: part.rest } as M & { handle?: string };
         delete copy.handle;
         out.push(copy);
