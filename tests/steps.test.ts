@@ -128,9 +128,17 @@ describe('step trim through compactSession', () => {
     expect(left.filter((id) => left.indexOf(id) !== left.lastIndexOf(id)).length).toBe(left.length);
     // A chain of step notes is folded into one note whose file holds them (src/chains.ts); follow it.
     const shown = out.messages.map((m) => m.text).join('\n');
-    const notes = [...shown.matchAll(/each naming its file: (arch\/notes-[0-9a-f]{12}\.txt)/g)].map((m) => m[1]!);
-    for (const path of notes) expect(a.files.has(path)).toBe(true);
-    const folded = notes.map((path) => a.files.get(path)!);
+    // Folded notes (src/stepnotes.ts, src/chains.ts) name a file holding the originals; follow them, nested too.
+    const folded: string[] = [];
+    const queue = [shown];
+    while (queue.length > 0) {
+      const text = queue.pop()!;
+      for (const m of text.matchAll(/(?:each naming its file|each step's note and file): (arch\/(?:notes|stepnotes)-[0-9a-f]{12}\.txt)/g)) {
+        expect(a.files.has(m[1]!)).toBe(true);
+        folded.push(a.files.get(m[1]!)!);
+        queue.push(a.files.get(m[1]!)!);
+      }
+    }
     const cited = [...[shown, ...folded].join('\n').matchAll(/full text: (arch\/step-[0-9a-f]{12}\.txt)/g)].map((m) => m[1]);
     expect(cited.length).toBeGreaterThan(0);
     for (const path of cited) expect(a.files.has(path!)).toBe(true);
